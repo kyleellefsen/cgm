@@ -8,7 +8,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 # https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
     name='cgm',  
-    version='0.0.2',
+    version='0.0.3',
     description='Causal Graphical Models',
     long_description=long_description, 
     long_description_content_type='text/markdown', 

@@ -18,12 +18,12 @@ import cgm
 
 np.random.seed(30)
 # Define all nodes
-A = cgm.DAG_Node('A', 3)
+A = cgm.DAG_Node('A', nStates=3)
 B = cgm.DAG_Node('B', 3)
 C = cgm.DAG_Node('C', 3)
 D = cgm.DAG_Node('D', 3)
 # Specify all parents of nodes
-cgm.CPD(B, [A])
+cgm.CPD(child=B, parents=[A])
 cgm.CPD(C, [B])
 cgm.CPD(D, [A, B])
 nodes = [A, B, C, D]
