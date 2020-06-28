@@ -18,17 +18,17 @@ import cgm
 
 np.random.seed(30)
 # Define all nodes
-A = DAG_Node('A', 3)
-B = DAG_Node('B', 3)
-C = DAG_Node('C', 3)
-D = DAG_Node('D', 3)
+A = cgm.DAG_Node('A', 3)
+B = cgm.DAG_Node('B', 3)
+C = cgm.DAG_Node('C', 3)
+D = cgm.DAG_Node('D', 3)
 # Specify all parents of nodes
-CPD(B, [A])
-CPD(C, [B])
-CPD(D, [A, B])
+cgm.CPD(B, [A])
+cgm.CPD(C, [B])
+cgm.CPD(D, [A, B])
 nodes = [A, B, C, D]
 # Create graph
-graph = DAG(nodes)
+graph = cgm.DAG(nodes)
 ```
 
 [src]: https://github.com/kyleellefsen/cgm

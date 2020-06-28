@@ -8,7 +8,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 # https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
     name='cgm',  
-    version='0.0.1',
+    version='0.0.2',
     description='Causal Graphical Models',
     long_description=long_description, 
     long_description_content_type='text/markdown', 
@@ -25,7 +25,7 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
     ],
     keywords='cgm, pgm, dag, causal inference, factors',
-    packages=find_packages(where='cgm'), 
+    packages=find_packages(exclude=('test', 'docs')),
     python_requires='>=3.7, <4',
     install_requires=['numpy'],
     project_urls={
