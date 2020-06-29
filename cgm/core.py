@@ -66,21 +66,24 @@ class Factor:
     """
     def __init__(self, scope: List[Variable], factor: np.ndarray = None):
         self.scope = scope
-        self._check_input()
         if factor is None:
             self.factor = self.makeFactor()
         else:
             self.factor = factor
+        self._check_input()
     
     @classmethod
     def getNull(Factor):
-        return Factor(scope=[], factor=np.array([1.]))
+        return Factor(scope=[], factor=np.float64(1))
 
     def _check_input(self):
         # all variable names have to be unique
         assert len(set([s.name for s in self.scope])) == len(self.scope)
         # all variable names must be in order
         assert sorted(self.scope) == self.scope
+        # size of scope much match nDims of factor
+        assert len(self.scope) == len(self.factor.shape)
+        
 
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
@@ -126,6 +129,11 @@ class Factor:
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
         return Factor(reduced_scope, np.sum(self.factor, axis=axes))
+    
+    def normalize(self):
+        """Returns a factor with the same distribution whose sum is 1"""
+        factor = (self / self.marginalize(self.scope)).factor
+        return Factor(self.scope, factor)
 
 class CPD(Factor):
     """This is a type of factor with additional constraints. One variable in its
@@ -157,6 +165,10 @@ class CPD(Factor):
         self.factor = (self / self.marginalize([self.child])).factor
         margin = self.marginalize([self.child]).factor
         np.testing.assert_allclose(margin, np.ones_like(margin))
+    
+    def normalize(self):
+        msg = "CPD has no method 'normalize', since it is already normalized."
+        raise AttributeError(msg)
 
 class DAG():
     """ Contains a list of DAG_Nodes. The information about connectivity is

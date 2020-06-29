@@ -34,10 +34,10 @@ class DagVariableEliminationTest(unittest.TestCase):
 
 class ClusterGraphTest(unittest.TestCase):
 
-    def test_clustergraph(self):
+    def generate_clustergraph1(self):
         """ From Coursera PGM Course 2, Week 2, Video: Belief Propagation 
         Algorithm, Example Cluster Graph (12 minute mark)."""
-        logging.info('Creating Variables and Clusters in clusterGraphTest()')
+        np.random.seed(30)
         A = Variable('A', 3)
         B = Variable('B', 3)
         C = Variable('C', 3)
@@ -63,9 +63,83 @@ class ClusterGraphTest(unittest.TestCase):
         ClusterEdge([psi3, psi4], [B])
         ClusterEdge([psi3, psi5], [D])
         ClusterEdge([psi4, psi5], [E])
+        return ClusterGraph([psi1, psi2, psi3, psi4, psi5])
 
+    def generate_clustergraph_chain(self):
+        """ From Coursera PGM Course 2, Week 2, Video: Clique Tree Algorithm 
+        - Correctness, Message Passing In Trees (2 minute mark)."""
+        np.random.seed(30)
+        A = DAG_Node('A', 3)
+        B = DAG_Node('B', 3)
+        C = DAG_Node('C', 3)
+        D = DAG_Node('D', 3)
+        E = DAG_Node('E', 3) 
+        phi1 = CPD(A, [B])
+        phi2 = CPD(B, [C])
+        phi3 = CPD(C, [D])
+        phi4 = CPD(D, [E])
+        phi5 = CPD(E, [])
+        psi1 = Cluster([phi1])
+        psi2 = Cluster([phi2])
+        psi3 = Cluster([phi3])
+        psi4 = Cluster([phi4])
+        psi5 = Cluster([phi5])
+        ClusterEdge([psi1, psi2], [B])
+        ClusterEdge([psi2, psi3], [C])
+        ClusterEdge([psi3, psi4], [D])
+        ClusterEdge([psi4, psi5], [E])
         g = ClusterGraph([psi1, psi2, psi3, psi4, psi5])
-        g.propagate_beliefs_round_robin(10)
+        return g
+
+    def test_clustergraph1(self):
+        logging.debug('Creating Variables and Clusters in clusterGraphTest()')
+        g = self.generate_clustergraph1()
+        g.propagate_beliefs_round_robin(5)
+
+    def test_forward_backward_on_chain(self):
+        logging.debug('Creating Variables and Clusters in test_cliquetree()')
+        g = self.generate_clustergraph_chain()
+        psi1 = g.nodes[0]
+        A = g.get_variable('A')
+        B = g.get_variable('B')
+        logging.debug(f'\n{psi1.get_belief().factor}')
+        g.forward_backward_algorithm()
+        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().factor
+        logging.debug(f"Estimated distribution over A: \n{p_of_A_estimate}")
+        joint_factor = Factor.getNull()
+        for f in g.factors:
+            joint_factor = joint_factor * f
+        marginal_factor = joint_factor.marginalize(g.variables - {A})
+        p_of_A_true = marginal_factor.factor
+        logging.debug(f"True distribution over A: \n{p_of_A_true}")
+        np.testing.assert_array_almost_equal(p_of_A_true, p_of_A_estimate, decimal=2)
+        
+    def test_roundrobin_on_chain(self):
+        logging.debug('Creating Variables and Clusters in test_cliquetree()')
+        g = self.generate_clustergraph_chain()
+        psi1 = g.nodes[0]
+        A = g.get_variable('A')
+        B = g.get_variable('B')
+        logging.debug(f'\n{psi1.get_belief().factor}')
+        g.propagate_beliefs_round_robin(5)
+        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().factor
+        logging.debug(f"Estimated distribution over A: \n{p_of_A_estimate}")
+        joint_factor = Factor.getNull()
+        for f in g.factors:
+            joint_factor = joint_factor * f
+        marginal_factor = joint_factor.marginalize(g.variables - {A})
+        p_of_A_true = marginal_factor.factor
+        logging.debug(f"True distribution over A: \n{p_of_A_true}")
+        np.testing.assert_array_almost_equal(p_of_A_true, p_of_A_estimate, decimal=2)
+        
+
+        
+
+
+
+
+
+
 
 
 

@@ -26,9 +26,8 @@ D = cgm.DAG_Node('D', 3)
 cgm.CPD(child=B, parents=[A])
 cgm.CPD(C, [B])
 cgm.CPD(D, [A, B])
-nodes = [A, B, C, D]
 # Create graph
-graph = cgm.DAG(nodes)
+graph = cgm.DAG([A, B, C, D])
 ```
 
 [src]: https://github.com/kyleellefsen/cgm
