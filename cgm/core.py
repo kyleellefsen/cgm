@@ -20,9 +20,28 @@ class Variable:
 
 
 class DAG_Node(Variable):
-    """A DAG (Directed Acyclic Graph) node is a variable in a Bayesian Network. 
+    """A DAG (Directed Acyclic Graph) node is a variable in a DAG. 
     A node can have multiple parents and multiple children, but no cycles can be
-    created. A node is associated with a single conditional probability 
+    created.
+    """
+    def __init__(self, name: str, nStates: int):
+        super().__init__(name, nStates)
+        self.parents = set()
+    
+    def get_ancestors(self):
+        parents_remaining = self.parents.copy()
+        ancestors = set()
+        while len(parents_remaining) > 0:
+            node = parents_remaining.pop()
+            ancestors.add(node)
+            ancestors.update(node.get_ancestors())
+            parents_remaining = parents_remaining - ancestors
+        return ancestors
+
+
+class CG_Node(DAG_Node):
+    """A CG (Causal Graph) node is a variable in a Bayesian Network. 
+    A node is associated with a single conditional probability 
     distribution (CPD), which is a distribution over the variable given its 
     parents. If the node has no parents, this CPD is a distribution over all the
     states of the variable. 
@@ -36,16 +55,6 @@ class DAG_Node(Variable):
     def update_cpd(self, cpd):
         self.cpd = cpd
         self.parents = set(self.cpd.scope) - set([self])
-    
-    def get_ancestors(self):
-        parents_remaining = self.parents.copy()
-        ancestors = set()
-        while len(parents_remaining) > 0:
-            node = parents_remaining.pop()
-            ancestors.add(node)
-            ancestors.update(node.get_ancestors())
-            parents_remaining = parents_remaining - ancestors
-        return ancestors
 
 
 class Factor:
@@ -135,13 +144,14 @@ class Factor:
         factor = (self / self.marginalize(self.scope)).factor
         return Factor(self.scope, factor)
 
+
 class CPD(Factor):
     """This is a type of factor with additional constraints. One variable in its
     scope is the child node, the others are the parents. The CPD must sum to 1
     for every particular value of the child node. Additionally, the CPD cannot
     introduce cycles in the DAG.
     """
-    def __init__(self, child: DAG_Node, parents: List[DAG_Node]=[], factor=None):
+    def __init__(self, child: CG_Node, parents: List[CG_Node]=[], factor=None):
         scope = sorted(list(set([child] + parents)))
         super().__init__(scope, factor)
         self.set_child(child)
@@ -170,16 +180,40 @@ class CPD(Factor):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
 
-class DAG():
-    """ Contains a list of DAG_Nodes. The information about connectivity is
-    stored at each node.
-    """
+    def sample(self, parent_states: dict = {}, nSamples: int = 1):
+        parents = set(self.scope) - set([self.child])
+        assert parents == set(parent_states.keys())
+        index = []
+        for var in self.scope:
+            if var in parents:
+                index.append(parent_states[var])
+            else:
+                index.append(slice(None))
+        index = tuple(index)
+        dist = self.factor[index]
+        np.testing.assert_almost_equal(dist.sum(), 1.0)
+        samples = np.random.choice(a=len(dist), size=nSamples, p=dist)
+        return samples
+
+
+class DAG:
     def __init__(self, nodes: List[DAG_Node]):
         self.nodes = sorted(nodes)
-        
+
     def __repr__(self):
         s = ''
         for n in self.nodes:
             parents = sorted(list(n.parents))
             s += f"{n} <- {parents}\n"
         return s
+
+
+class CG(DAG):
+    """ Causal Graph
+    Contains a list of CG_Nodes. The information about connectivity is stored 
+    at each node.
+    """
+    def __init__(self, nodes: List[CG_Node]):
+        super().__init__(nodes)
+        
+

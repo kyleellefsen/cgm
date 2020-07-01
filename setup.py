@@ -1,3 +1,9 @@
+"""
+Commands for uploading to https://pypi.org/project/cgm/
+python -m pip install --upgrade twine
+python setup.py sdist bdist_wheel
+twine upload dist/*
+"""
 from setuptools import setup, find_packages
 from os import path
 
@@ -8,7 +14,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 # https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
     name='cgm',  
-    version='0.0.3',
+    version='0.0.4',
     description='Causal Graphical Models',
     long_description=long_description, 
     long_description_content_type='text/markdown', 

@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List
 import logging
-from ..core import Variable, Factor, DAG_Node, CPD, DAG
+from ..core import Factor
 
 class Cluster:
     def __init__(self, factors: List[Factor]):

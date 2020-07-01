@@ -18,16 +18,16 @@ import cgm
 
 np.random.seed(30)
 # Define all nodes
-A = cgm.DAG_Node('A', nStates=3)
-B = cgm.DAG_Node('B', 3)
-C = cgm.DAG_Node('C', 3)
-D = cgm.DAG_Node('D', 3)
+A = cgm.CG_Node('A', nStates=3)
+B = cgm.CG_Node('B', 3)
+C = cgm.CG_Node('C', 3)
+D = cgm.CG_Node('D', 3)
 # Specify all parents of nodes
 cgm.CPD(child=B, parents=[A])
 cgm.CPD(C, [B])
 cgm.CPD(D, [A, B])
-# Create graph
-graph = cgm.DAG([A, B, C, D])
+# Create causal graph
+graph = cgm.CG([A, B, C, D])
 ```
 
 [src]: https://github.com/kyleellefsen/cgm

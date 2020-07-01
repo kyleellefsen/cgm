@@ -14,19 +14,19 @@ class DagVariableEliminationTest(unittest.TestCase):
 
     def test_elimination1(self):
         logging.debug(f"Running test_elimination1()")
-        dag = get_dag1()
-        A, B, C, D, E, F = dag.nodes
+        cg = get_cg1()
+        A, B, C, D, E, F = cg.nodes
         elimination_order = [F, E, D, C, B, A]
-        dve = DagVariableElimination(dag)
+        dve = DagVariableElimination(cg)
         factors = dve.variable_elimination(elimination_order)
         self.assertAlmostEqual(factors[0].factor, 1)
     
     def test_elimination2(self):
         logging.debug(f"Running test_elimination2()")
-        dag = get_dag2()
-        rain, season, slippery, sprinkler, wet = dag.nodes
+        cg = get_cg2()
+        rain, season, slippery, sprinkler, wet = cg.nodes
         elimination_order = [season, rain, sprinkler, wet]
-        dve = DagVariableElimination(dag)
+        dve = DagVariableElimination(cg)
         slippery_factor = dve.variable_elimination(elimination_order)[0] 
         logging.debug(f"Remaining factor: {slippery_factor}")
         logging.debug(f"Probabilities of slippery: {slippery_factor.factor}")
@@ -69,11 +69,11 @@ class ClusterGraphTest(unittest.TestCase):
         """ From Coursera PGM Course 2, Week 2, Video: Clique Tree Algorithm 
         - Correctness, Message Passing In Trees (2 minute mark)."""
         np.random.seed(30)
-        A = DAG_Node('A', 3)
-        B = DAG_Node('B', 3)
-        C = DAG_Node('C', 3)
-        D = DAG_Node('D', 3)
-        E = DAG_Node('E', 3) 
+        A = CG_Node('A', 3)
+        B = CG_Node('B', 3)
+        C = CG_Node('C', 3)
+        D = CG_Node('D', 3)
+        E = CG_Node('E', 3) 
         phi1 = CPD(A, [B])
         phi2 = CPD(B, [C])
         phi3 = CPD(C, [D])
@@ -94,7 +94,7 @@ class ClusterGraphTest(unittest.TestCase):
     def test_clustergraph1(self):
         logging.debug('Creating Variables and Clusters in clusterGraphTest()')
         g = self.generate_clustergraph1()
-        g.propagate_beliefs_round_robin(5)
+        g.propagate_beliefs_round_robin(3)
 
     def test_forward_backward_on_chain(self):
         logging.debug('Creating Variables and Clusters in test_cliquetree()')
@@ -131,9 +131,20 @@ class ClusterGraphTest(unittest.TestCase):
         p_of_A_true = marginal_factor.factor
         logging.debug(f"True distribution over A: \n{p_of_A_true}")
         np.testing.assert_array_almost_equal(p_of_A_true, p_of_A_estimate, decimal=2)
-        
+
+class ForwardSamplingTest(unittest.TestCase):
+
+    def test_forward_sample(self):
+        logging.debug('Testing forward_sample()')
+        cg = get_cg2()
+        rain, season, slippery, sprinkler, wet = cg.nodes
+        sampler = ForwardSampler(cg)
+        samples = sampler.getNSamples(1000)
+        marginal = sampler.getSampledMarginal({season})
+        logging.debug(f'Season count: {marginal.factor}')
 
         
+
 
 
 
