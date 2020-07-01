@@ -63,7 +63,7 @@ class Factor:
     implementation the mapping is stored as a np.ndarray. For example, if this
     factor's scope is the variables {A, B, C}, and each of these is a binary 
     variable, then to access the value of the factor for [A=1, B=0, C=1], the 
-    entry can be accessed at self.factor[1, 0, 1]. If the ndarray isn't 
+    entry can be accessed at self.getValues()[1, 0, 1]. If the ndarray isn't 
     specified, a random one will be created. 
 
     The scope of a factor must is sorted by the name of the variables. All 
@@ -71,19 +71,22 @@ class Factor:
 
     Factors ϕ1 and ϕ2 can be multiplied and divided by ϕ1 * ϕ2 and ϕ1 / ϕ2. 
     A factor can be marginalized over a subset of its scope. For example, to 
-    marginalize out variables A and B, call ϕ.marinalize([A, B]).
+    marginalize out variables A and B, call ϕ.marginalize([A, B]).
     """
-    def __init__(self, scope: List[Variable], factor: np.ndarray = None):
+    def __init__(self, scope: List[Variable], values: np.ndarray = None):
         self.scope = scope
-        if factor is None:
-            self.factor = self.makeFactor()
+        if values is None:
+            self._values = self.makeFactor()
         else:
-            self.factor = factor
+            self._values = values
         self._check_input()
     
     @classmethod
     def getNull(Factor):
-        return Factor(scope=[], factor=np.float64(1))
+        return Factor(scope=[], values=np.float64(1))
+    
+    def getValues(self):
+        return self._values
 
     def _check_input(self):
         # all variable names have to be unique
@@ -91,7 +94,7 @@ class Factor:
         # all variable names must be in order
         assert sorted(self.scope) == self.scope
         # size of scope much match nDims of factor
-        assert len(self.scope) == len(self.factor.shape)
+        assert len(self.scope) == len(self._values.shape)
         
 
     def __repr__(self):
@@ -110,10 +113,10 @@ class Factor:
         scope_union = sorted(list(set(scope1).union(scope2)))
         dims2insert1 = np.where([s not in scope1 for s in scope_union])[0]
         dims2insert2 = np.where([s not in scope2 for s in scope_union])[0]
-        aa = self.factor
+        aa = self._values
         for i in dims2insert1:
             aa = np.expand_dims(aa, i)
-        bb = other.factor
+        bb = other._values
         for i in dims2insert2:
             bb = np.expand_dims(bb, i)
         return Factor(scope_union, np.multiply(aa, bb))
@@ -125,10 +128,10 @@ class Factor:
         # The scope of the denominator must be a subset of that of the numerator
         assert scope_intersection == scope2  
         dims2insert = np.where([s not in scope2 for s in scope1])[0]
-        bb = other.factor
+        bb = other._values
         for i in dims2insert:
             bb = np.expand_dims(bb, i)
-        return Factor(scope1, np.divide(self.factor, bb))
+        return Factor(scope1, np.divide(self._values, bb))
     
     def marginalize(self, variables: List[Variable]):
         """ 
@@ -137,12 +140,14 @@ class Factor:
         """
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
-        return Factor(reduced_scope, np.sum(self.factor, axis=axes))
+        return Factor(reduced_scope, np.sum(self._values, axis=axes))
     
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
-        factor = (self / self.marginalize(self.scope)).factor
-        return Factor(self.scope, factor)
+        return Factor(self.scope, (self / self.marginalize(self.scope))._values)
+    
+    def increment_at_index(self, index: tuple, amount):
+        self._values[index] += amount
 
 
 class CPD(Factor):
@@ -151,9 +156,9 @@ class CPD(Factor):
     for every particular value of the child node. Additionally, the CPD cannot
     introduce cycles in the DAG.
     """
-    def __init__(self, child: CG_Node, parents: List[CG_Node]=[], factor=None):
+    def __init__(self, child: CG_Node, parents: List[CG_Node]=[], values=None):
         scope = sorted(list(set([child] + parents)))
-        super().__init__(scope, factor)
+        super().__init__(scope, values)
         self.set_child(child)
         self._normalize()
     
@@ -172,8 +177,8 @@ class CPD(Factor):
     
     def _normalize(self):
         # Normalize so it is a distribution that sums to 1
-        self.factor = (self / self.marginalize([self.child])).factor
-        margin = self.marginalize([self.child]).factor
+        self._values = (self / self.marginalize([self.child]))._values
+        margin = self.marginalize([self.child])._values
         np.testing.assert_allclose(margin, np.ones_like(margin))
     
     def normalize(self):
@@ -190,7 +195,7 @@ class CPD(Factor):
             else:
                 index.append(slice(None))
         index = tuple(index)
-        dist = self.factor[index]
+        dist = self._values[index]
         np.testing.assert_almost_equal(dist.sum(), 1.0)
         samples = np.random.choice(a=len(dist), size=nSamples, p=dist)
         return samples

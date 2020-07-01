@@ -19,7 +19,7 @@ class DagVariableEliminationTest(unittest.TestCase):
         elimination_order = [F, E, D, C, B, A]
         dve = DagVariableElimination(cg)
         factors = dve.variable_elimination(elimination_order)
-        self.assertAlmostEqual(factors[0].factor, 1)
+        self.assertAlmostEqual(factors[0].getValues(), 1)
     
     def test_elimination2(self):
         logging.debug(f"Running test_elimination2()")
@@ -29,8 +29,8 @@ class DagVariableEliminationTest(unittest.TestCase):
         dve = DagVariableElimination(cg)
         slippery_factor = dve.variable_elimination(elimination_order)[0] 
         logging.debug(f"Remaining factor: {slippery_factor}")
-        logging.debug(f"Probabilities of slippery: {slippery_factor.factor}")
-        self.assertAlmostEqual(slippery_factor.factor.sum(), 1)
+        logging.debug(f"Probabilities of slippery: {slippery_factor.getValues()}")
+        self.assertAlmostEqual(slippery_factor.getValues().sum(), 1)
 
 class ClusterGraphTest(unittest.TestCase):
 
@@ -102,15 +102,15 @@ class ClusterGraphTest(unittest.TestCase):
         psi1 = g.nodes[0]
         A = g.get_variable('A')
         B = g.get_variable('B')
-        logging.debug(f'\n{psi1.get_belief().factor}')
+        logging.debug(f'\n{psi1.get_belief().getValues()}')
         g.forward_backward_algorithm()
-        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().factor
+        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().getValues()
         logging.debug(f"Estimated distribution over A: \n{p_of_A_estimate}")
         joint_factor = Factor.getNull()
         for f in g.factors:
             joint_factor = joint_factor * f
         marginal_factor = joint_factor.marginalize(g.variables - {A})
-        p_of_A_true = marginal_factor.factor
+        p_of_A_true = marginal_factor.getValues()
         logging.debug(f"True distribution over A: \n{p_of_A_true}")
         np.testing.assert_array_almost_equal(p_of_A_true, p_of_A_estimate, decimal=2)
         
@@ -120,15 +120,15 @@ class ClusterGraphTest(unittest.TestCase):
         psi1 = g.nodes[0]
         A = g.get_variable('A')
         B = g.get_variable('B')
-        logging.debug(f'\n{psi1.get_belief().factor}')
+        logging.debug(f'\n{psi1.get_belief().getValues()}')
         g.propagate_beliefs_round_robin(5)
-        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().factor
+        p_of_A_estimate = psi1.get_belief().marginalize([B]).normalize().getValues()
         logging.debug(f"Estimated distribution over A: \n{p_of_A_estimate}")
         joint_factor = Factor.getNull()
         for f in g.factors:
             joint_factor = joint_factor * f
         marginal_factor = joint_factor.marginalize(g.variables - {A})
-        p_of_A_true = marginal_factor.factor
+        p_of_A_true = marginal_factor.getValues()
         logging.debug(f"True distribution over A: \n{p_of_A_true}")
         np.testing.assert_array_almost_equal(p_of_A_true, p_of_A_estimate, decimal=2)
 
@@ -141,7 +141,7 @@ class ForwardSamplingTest(unittest.TestCase):
         sampler = ForwardSampler(cg)
         samples = sampler.getNSamples(1000)
         marginal = sampler.getSampledMarginal({season})
-        logging.debug(f'Season count: {marginal.factor}')
+        logging.debug(f'Season count: {marginal.getValues()}')
 
         
 

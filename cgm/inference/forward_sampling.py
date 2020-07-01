@@ -30,7 +30,8 @@ class ForwardSampler:
         self.samples = Factor(scope, np.zeros(nDims, dtype=np.int))
         for _ in range(N):
             sample = self.forward_sample()
-            self.samples.factor[tuple(sample[v] for v in self.samples.scope)] += 1
+            idx = tuple(sample[v] for v in self.samples.scope)
+            self.samples.increment_at_index(idx, 1)
         return self.samples
 
     def getSampledMarginal(self, nodes: set):
