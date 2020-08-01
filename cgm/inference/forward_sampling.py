@@ -5,6 +5,16 @@ from ..core import Variable, Factor, CG_Node, CPD, CG
 
 
 class ForwardSampler:
+    """
+    Example Usage:
+    ```
+    cg = cgm.example_graphs.get_cg1()
+    sampler = cgm.ForwardSampler(cg)
+    samples = sampler.getNSamples(100)
+    print(samples.getValues())
+
+
+    """
     def __init__(self, cg: CG):
         self.cg = cg
         self.samples = None

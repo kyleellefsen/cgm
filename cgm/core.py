@@ -50,9 +50,9 @@ class CG_Node(DAG_Node):
     def __init__(self, name: str, nStates: int):
         super().__init__(name, nStates)
         # by default the cpd has no parents; the node is unconnected
-        self.update_cpd(CPD(self))
+        self.setCpd(CPD(self))
     
-    def update_cpd(self, cpd):
+    def setCpd(self, cpd):
         self.cpd = cpd
         self.parents = set(self.cpd.scope) - set([self])
 
@@ -67,7 +67,7 @@ class Factor:
     specified, a random one will be created. 
 
     The scope of a factor must is sorted by the name of the variables. All 
-    variables must hav unique names. 
+    variables must have unique names. 
 
     Factors ϕ1 and ϕ2 can be multiplied and divided by ϕ1 * ϕ2 and ϕ1 / ϕ2. 
     A factor can be marginalized over a subset of its scope. For example, to 
@@ -76,17 +76,27 @@ class Factor:
     def __init__(self, scope: List[Variable], values: np.ndarray = None):
         self.scope = scope
         if values is None:
-            self._values = self.makeFactor()
+            self._values = self._getRandomValues()
         else:
-            self._values = values
+            self._values = values    
         self._check_input()
-    
+
     @classmethod
     def getNull(Factor):
         return Factor(scope=[], values=np.float64(1))
     
     def getValues(self):
         return self._values
+
+    def setValues(self, values: np.ndarray):
+        # the dimension of the factor cannot be changed using this method
+        assert self._values.shape == values.shape
+        self._values = values
+        self._check_input()
+
+    def randomizeValues(self):
+        self._values = self._getRandomValues()
+        self._check_input()
 
     def _check_input(self):
         # all variable names have to be unique
@@ -100,7 +110,7 @@ class Factor:
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
             
-    def makeFactor(self):
+    def _getRandomValues(self):
         nDims = tuple(s.nStates for s in self.scope)
         return np.random.uniform(size=nDims)
     
@@ -123,6 +133,8 @@ class Factor:
     
     def __truediv__(self, other: 'Factor'):
         scope1 = self.scope
+        if isinstance(other, (int, float)):
+            return Factor(scope1, np.divide(self._values, other))
         scope2 = other.scope
         scope_intersection = sorted(list(set(scope1).intersection(scope2)))
         # The scope of the denominator must be a subset of that of the numerator
@@ -146,6 +158,17 @@ class Factor:
         """Returns a factor with the same distribution whose sum is 1"""
         return Factor(self.scope, (self / self.marginalize(self.scope))._values)
     
+    def condition(self, values: dict):
+        """
+        Condition on a set of variables at particular values of those variables.
+        values is a dictionary where each key is a variable to condition on and
+        the value is an integer representing the index to condition on. 
+
+        The scope of the returned factor will exclude all the variables 
+        conditioned on. 
+        """
+        raise NotImplementedError  # implementation needs to be added
+    
     def increment_at_index(self, index: tuple, amount):
         self._values[index] += amount
 
@@ -165,7 +188,7 @@ class CPD(Factor):
     def set_child(self, child):
         self.child = child
         self._nocycles()
-        child.update_cpd(self)
+        child.setCpd(self)
 
     def _nocycles(self):
         child = self.child
@@ -199,6 +222,15 @@ class CPD(Factor):
         np.testing.assert_almost_equal(dist.sum(), 1.0)
         samples = np.random.choice(a=len(dist), size=nSamples, p=dist)
         return samples
+
+    def randomizeValues(self):
+        super().randomizeValues()
+        self._normalize()
+    
+    def setValues(self, values):
+        super().setValues(values)
+        self._normalize()
+
 
 
 class DAG:
