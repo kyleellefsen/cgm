@@ -14,7 +14,7 @@ class DagVariableEliminationTest(unittest.TestCase):
 
     def test_elimination1(self):
         logging.debug(f"Running test_elimination1()")
-        cg = get_cg1()
+        cg = get_graph1()
         A, B, C, D, E, F = cg.nodes
         elimination_order = [F, E, D, C, B, A]
         dve = DagVariableElimination(cg)
@@ -23,7 +23,7 @@ class DagVariableEliminationTest(unittest.TestCase):
     
     def test_elimination2(self):
         logging.debug(f"Running test_elimination2()")
-        cg = get_cg2()
+        cg = get_graph2()
         rain, season, slippery, sprinkler, wet = cg.nodes
         elimination_order = [season, rain, sprinkler, wet]
         dve = DagVariableElimination(cg)
@@ -69,11 +69,11 @@ class ClusterGraphTest(unittest.TestCase):
         """ From Coursera PGM Course 2, Week 2, Video: Clique Tree Algorithm 
         - Correctness, Message Passing In Trees (2 minute mark)."""
         np.random.seed(30)
-        A = CG_Node('A', 3)
-        B = CG_Node('B', 3)
-        C = CG_Node('C', 3)
-        D = CG_Node('D', 3)
-        E = CG_Node('E', 3) 
+        A = BNode('A', 3)
+        B = BNode('B', 3)
+        C = BNode('C', 3)
+        D = BNode('D', 3)
+        E = BNode('E', 3) 
         phi1 = CPD(A, [B])
         phi2 = CPD(B, [C])
         phi3 = CPD(C, [D])
@@ -136,7 +136,7 @@ class ForwardSamplingTest(unittest.TestCase):
 
     def test_forward_sample(self):
         logging.debug('Testing forward_sample()')
-        cg = get_cg2()
+        cg = get_graph2()
         rain, season, slippery, sprinkler, wet = cg.nodes
         sampler = ForwardSampler(cg)
         samples = sampler.getNSamples(1000)
