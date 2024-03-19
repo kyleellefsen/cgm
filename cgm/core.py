@@ -5,8 +5,7 @@ The core module contains the basic building blocks of a Causal Graphical Model.
 from typing import List, Sequence, TypeVar, Generic
 import functools
 import numpy as np
-# V can be Variable or any subclass of Variable
-V = TypeVar('V', bound='Variable')
+V = TypeVar('V', bound='Variable') # V can be Variable or Variable's subclass
 D = TypeVar('D', bound='DAG_Node')
 
 
@@ -14,10 +13,22 @@ class Variable:
     """A variable has a name and can taken on a finite number of states. 
     """
     def __init__(self, name: str, num_states: int):
-        self.name = name
-        self.num_states = num_states
+        self._name = name
+        self._num_states = num_states
+
+    @property
+    def name(self) -> str:
+        """Return the name of the variable."""
+        return self._name
+
+    @property
+    def num_states(self) -> int:
+        """Return the number of states of the variable."""
+        return self._num_states
+
     def __repr__(self):
         return self.name
+
     def __lt__(self, other):
         return self.name < other.name
 
@@ -108,6 +119,18 @@ class Factor(Generic[V]):
     Factors ϕ1 and ϕ2 can be multiplied and divided by ϕ1 * ϕ2 and ϕ1 / ϕ2. 
     A factor can be marginalized over a subset of its scope. For example, to 
     marginalize out variables A and B, call ϕ.marginalize([A, B]).
+
+    Example:
+    >>> A = cgm.Variable('A', 2)
+    >>> B = cgm.Variable('B', 2)
+    >>> C = cgm.Variable('C', 2)
+    >>> phi1 = cgm.Factor([A, B, C])
+    >>> phi2 = cgm.Factor([B, C])
+    >>> phi3 = cgm.Factor([B, C])
+    >>> phi1 * phi2
+    >>> phi1 / phi2
+    >>> phi1.marginalize([A, B])
+
     """
     def __init__(self,
                  scope: Sequence[V],
@@ -130,6 +153,7 @@ class Factor(Generic[V]):
         return self._values
 
     def set_values(self, new_values: np.ndarray):
+        """Set the values of the factor to new_values."""
         # the dimension of the factor cannot be changed using this method
         assert self._values.shape == new_values.shape
         self._values = new_values
@@ -142,7 +166,7 @@ class Factor(Generic[V]):
 
     def _check_input(self):
         # all variable names have to be unique
-        assert len(set([s.name for s in self.scope])) == len(self.scope)
+        assert len({s.name for s in self.scope}) == len(self.scope)
         # all variable names must be in order
         assert sorted(self.scope) == self.scope
         # size of scope much match nDims of factor
@@ -197,7 +221,7 @@ class Factor(Generic[V]):
 
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
-        return Factor(self.scope, (self / self.marginalize(self.scope))._values)
+        return Factor(self.scope, (self / self.marginalize(self.scope)).values)
 
     def condition(self, values: dict):
         """
@@ -222,22 +246,44 @@ class CPD(Factor[CG_Node]):
     scope is the child node, the others are the parents. The CPD must sum to 1
     for every particular value of the child node. Additionally, the CPD cannot
     introduce cycles in the DAG.
+
+    Example:
+    >>> A = cgm.CG_Node('A', 2)
+    >>> B = cgm.CG_Node('B', 2)
+    >>> C = cgm.CG_Node('C', 2)
+    >>> phi1 = cgm.CPD(A, [B])
+    >>> phi2 = cgm.CPD(B, [C])
+    >>> phi3 = cgm.CPD(C, [])
+
     """
     def __init__(self,
                  child: CG_Node,
                  parents: list[CG_Node]|None=None,
                  values: np.ndarray|None=None):
+        self._child = child
         if parents is None:
             parents = []
+        self._parents = parents
         scope: Sequence[CG_Node] = sorted(list(set([child] + parents)))
         super().__init__(scope, values)
-        self.set_child(child)
+        self.child = child
         self._normalize()
 
-    def set_child(self, child):
-        self.child = child
+    @property
+    def child(self) -> CG_Node:
+        """Return the child node of the CPD."""
+        return self._child
+
+    @child.setter
+    def child(self, child: CG_Node):
+        self._child = child
         self._nocycles()
         child.cpd = self
+
+    @property
+    def parents(self) -> list[CG_Node]:
+        """Return the parents of the CPD."""
+        return self._parents
 
     def _nocycles(self):
         child = self.child
@@ -249,8 +295,9 @@ class CPD(Factor[CG_Node]):
 
     def _normalize(self):
         # Normalize so it is a distribution that sums to 1
-        self._values = (self / self.marginalize([self.child]))._values
-        margin = self.marginalize([self.child])._values
+        normalized_values = (self / self.marginalize([self.child])).values
+        self._values = normalized_values
+        margin = self.marginalize([self.child]).values
         np.testing.assert_allclose(margin, np.ones_like(margin))
 
     def normalize(self):
