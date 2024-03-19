@@ -14,7 +14,7 @@ class Cluster:
     def add_edge(self, edge):
         assert set(edge.scope).issubset(set(self.scope))
         self.edges.append(edge)
-        self.messages[edge] = Factor.getNull()
+        self.messages[edge] = Factor.get_null()
     
     def send_message(self, edge):
         target_node = edge.get_other_node(self)
@@ -83,8 +83,8 @@ class ClusterGraph:
         return factors
 
 
-    def propagate_beliefs_round_robin(self, nTimes):
-        for _ in range(nTimes):
+    def propagate_beliefs_round_robin(self, num_times:int):
+        for _ in range(num_times):
             for cluster in self.nodes:
                 for edge in cluster.edges:
                     cluster.send_message(edge)

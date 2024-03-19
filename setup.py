@@ -4,8 +4,8 @@ python -m pip install --upgrade twine
 python setup.py sdist bdist_wheel
 twine upload dist/*
 """
-from setuptools import setup, find_packages
 from os import path
+from setuptools import setup, find_packages
 
 pwd = path.abspath(path.dirname(__file__))
 with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
@@ -13,12 +13,12 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 
 # https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
-    name='cgm',  
-    version='0.0.4',
+    name='cgm',
+    version='0.0.5',
     description='Causal Graphical Models',
-    long_description=long_description, 
-    long_description_content_type='text/markdown', 
-    url='https://github.com/kyleellefsen/cgm', 
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+    url='https://github.com/kyleellefsen/cgm',
     author='Kyle Ellefsen',
     author_email='kyleellefsen@gmail.com',
     classifiers=[

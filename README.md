@@ -18,7 +18,7 @@ import cgm
 
 np.random.seed(30)
 # Define all nodes
-A = cgm.CG_Node('A', nStates=3)
+A = cgm.CG_Node('A', num_states=3)
 B = cgm.CG_Node('B', 3)
 C = cgm.CG_Node('C', 3)
 D = cgm.CG_Node('D', 3)

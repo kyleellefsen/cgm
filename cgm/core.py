@@ -1,69 +1,105 @@
 # -*- coding: utf-8 -*-
 """
-
-
-
+The core module contains the basic building blocks of a Causal Graphical Model.
 """
+from typing import List, Sequence, TypeVar, Generic
+import functools
 import numpy as np
-from typing import List
+# V can be Variable or any subclass of Variable
+V = TypeVar('V', bound='Variable')
+D = TypeVar('D', bound='DAG_Node')
+
 
 class Variable:
     """A variable has a name and can taken on a finite number of states. 
     """
-    def __init__(self, name: str, nStates: int):
+    def __init__(self, name: str, num_states: int):
         self.name = name
-        self.nStates = nStates
+        self.num_states = num_states
     def __repr__(self):
         return self.name
     def __lt__(self, other):
         return self.name < other.name
 
 
-class DAG_Node(Variable):
+class DAG_Node(Variable, Generic[D]):
     """A DAG (Directed Acyclic Graph) node is a variable in a DAG. 
     A node can have multiple parents and multiple children, but no cycles can be
     created.
     """
-    def __init__(self, name: str, nStates: int):
-        super().__init__(name, nStates)
-        self.parents = set()
-    
-    def get_ancestors(self):
+    def __init__(self, name: str, num_states: int):
+        super().__init__(name, num_states)
+        self._parents: set[D] = set()
+
+    @property
+    def parents(self) -> set[D]:
+        """Return a set of all the parents of this node."""
+        return self._parents
+
+    @parents.setter
+    def parents(self, parents: set[D]):
+        """Set the parents of this node."""
+        self._parents = parents
+        if hasattr(self, 'ancestors'):
+            del self.ancestors  # clear the cached property
+
+    @functools.cached_property
+    def ancestors(self) -> set[D]:
+        """Return a set of all the ancestors of this node"""
         parents_remaining = self.parents.copy()
-        ancestors = set()
+        ancestors_acc= set()
         while len(parents_remaining) > 0:
             node = parents_remaining.pop()
-            ancestors.add(node)
-            ancestors.update(node.get_ancestors())
-            parents_remaining = parents_remaining - ancestors
-        return ancestors
+            ancestors_acc.add(node)
+            ancestors_acc.update(node.ancestors)
+            parents_remaining = parents_remaining - ancestors_acc
+        return ancestors_acc
 
 
-class CG_Node(DAG_Node):
-    """A CG (Causal Graph) node is a variable in a Bayesian Network. 
+class CG_Node(DAG_Node['CG_Node']):
+    """A Causal Graph Node
+    
+    A CG_Node is a variable in a Bayesian Network. 
     A node is associated with a single conditional probability 
     distribution (CPD), which is a distribution over the variable given its 
     parents. If the node has no parents, this CPD is a distribution over all the
     states of the variable. 
 
+    Example:
+    >>> A = cgm.CG_Node('A', 2)
+    >>> B = cgm.CG_Node('B', 2)
+    >>> C = cgm.CG_Node('C', 2)
+    >>> phi1 = cgm.CPD(A, [B])
+    >>> phi2 = cgm.CPD(B, [C])
+    >>> phi3 = cgm.CPD(C, [])
+
+
     """
-    def __init__(self, name: str, nStates: int):
-        super().__init__(name, nStates)
+    def __init__(self, name: str, num_states: int):
+        super().__init__(name, num_states)
         # by default the cpd has no parents; the node is unconnected
-        self.setCpd(CPD(self))
-    
-    def setCpd(self, cpd):
-        self.cpd = cpd
+        self.cpd = CPD(self)
+
+    @property
+    def cpd(self) -> 'CPD':
+        """Return the conditional probability distribution for this node."""
+        return self._cpd
+
+    @cpd.setter
+    def cpd(self, cpd: 'CPD'):
+        """Set the conditional probability distribution for this node."""
+        self._cpd = cpd
         self.parents = set(self.cpd.scope) - set([self])
 
 
-class Factor:
+
+class Factor(Generic[V]):
     """A factor is a function that has a list of variables in its scope, and 
     maps every combination of variable values to a real number. In this 
     implementation the mapping is stored as a np.ndarray. For example, if this
     factor's scope is the variables {A, B, C}, and each of these is a binary 
     variable, then to access the value of the factor for [A=1, B=0, C=1], the 
-    entry can be accessed at self.getValues()[1, 0, 1]. If the ndarray isn't 
+    entry can be accessed at self.values[1, 0, 1]. If the ndarray isn't 
     specified, a random one will be created. 
 
     The scope of a factor must is sorted by the name of the variables. All 
@@ -73,29 +109,35 @@ class Factor:
     A factor can be marginalized over a subset of its scope. For example, to 
     marginalize out variables A and B, call ϕ.marginalize([A, B]).
     """
-    def __init__(self, scope: List[Variable], values: np.ndarray = None):
+    def __init__(self,
+                 scope: Sequence[V],
+                 values: np.ndarray | None = None):
         self.scope = scope
         if values is None:
-            self._values = self._getRandomValues()
+            self._values = self._get_random_values()
         else:
-            self._values = values    
+            self._values = values
         self._check_input()
 
     @classmethod
-    def getNull(Factor):
-        return Factor(scope=[], values=np.float64(1))
-    
-    def getValues(self):
+    def get_null(cls):
+        """Return a factor with no scope and a single value of 1.0."""
+        return cls[V](scope=[], values=np.float64(1))
+
+    @property
+    def values(self) -> np.ndarray:
+        """Return the values of the factor."""
         return self._values
 
-    def setValues(self, values: np.ndarray):
+    def set_values(self, new_values: np.ndarray):
         # the dimension of the factor cannot be changed using this method
-        assert self._values.shape == values.shape
-        self._values = values
+        assert self._values.shape == new_values.shape
+        self._values = new_values
         self._check_input()
 
-    def randomizeValues(self):
-        self._values = self._getRandomValues()
+    def randomize_values(self):
+        """Set the values of the factor to random numbers between 0 and 1."""
+        self._values = self._get_random_values()
         self._check_input()
 
     def _check_input(self):
@@ -105,15 +147,14 @@ class Factor:
         assert sorted(self.scope) == self.scope
         # size of scope much match nDims of factor
         assert len(self.scope) == len(self._values.shape)
-        
 
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
-            
-    def _getRandomValues(self):
-        nDims = tuple(s.nStates for s in self.scope)
-        return np.random.uniform(size=nDims)
-    
+
+    def _get_random_values(self):
+        num_dimensions = tuple(s.num_states for s in self.scope)
+        return np.random.uniform(size=num_dimensions)
+
     def __mul__(self, other: 'Factor'):
         """ 
         Factor product as defined in PGM Definition 4.2 (Koller 2009)
@@ -130,7 +171,7 @@ class Factor:
         for i in dims2insert2:
             bb = np.expand_dims(bb, i)
         return Factor(scope_union, np.multiply(aa, bb))
-    
+
     def __truediv__(self, other: 'Factor'):
         scope1 = self.scope
         if isinstance(other, (int, float)):
@@ -138,13 +179,13 @@ class Factor:
         scope2 = other.scope
         scope_intersection = sorted(list(set(scope1).intersection(scope2)))
         # The scope of the denominator must be a subset of that of the numerator
-        assert scope_intersection == scope2  
+        assert scope_intersection == scope2
         dims2insert = np.where([s not in scope2 for s in scope1])[0]
         bb = other._values
         for i in dims2insert:
             bb = np.expand_dims(bb, i)
         return Factor(scope1, np.divide(self._values, bb))
-    
+
     def marginalize(self, variables: List[Variable]):
         """ 
         Sum over all possible states of a list of variables
@@ -153,11 +194,11 @@ class Factor:
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
         return Factor(reduced_scope, np.sum(self._values, axis=axes))
-    
+
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
         return Factor(self.scope, (self / self.marginalize(self.scope))._values)
-    
+
     def condition(self, values: dict):
         """
         Condition on a set of variables at particular values of those variables.
@@ -168,73 +209,86 @@ class Factor:
         conditioned on. 
         """
         raise NotImplementedError  # implementation needs to be added
-    
-    def increment_at_index(self, index: tuple, amount):
+
+    def increment_at_index(self, index: tuple[int], amount):
+        """Increment the value of the factor at a particular index by amount."""
         self._values[index] += amount
 
 
-class CPD(Factor):
-    """This is a type of factor with additional constraints. One variable in its
+class CPD(Factor[CG_Node]):
+    """Conditional Probability Distribution
+    
+    This is a type of factor with additional constraints. One variable in its
     scope is the child node, the others are the parents. The CPD must sum to 1
     for every particular value of the child node. Additionally, the CPD cannot
     introduce cycles in the DAG.
     """
-    def __init__(self, child: CG_Node, parents: List[CG_Node]=[], values=None):
-        scope = sorted(list(set([child] + parents)))
+    def __init__(self,
+                 child: CG_Node,
+                 parents: list[CG_Node]|None=None,
+                 values: np.ndarray|None=None):
+        if parents is None:
+            parents = []
+        scope: Sequence[CG_Node] = sorted(list(set([child] + parents)))
         super().__init__(scope, values)
         self.set_child(child)
         self._normalize()
-    
+
     def set_child(self, child):
         self.child = child
         self._nocycles()
-        child.setCpd(self)
+        child.cpd = self
 
     def _nocycles(self):
         child = self.child
         parents = set(self.scope) - set([child])
         if len(parents) == 0:
             return
-        ancestors = set.union(*[p.get_ancestors() for p in parents])
+        ancestors = set.union(*[p.ancestors for p in parents])
         assert child not in ancestors
-    
+
     def _normalize(self):
         # Normalize so it is a distribution that sums to 1
         self._values = (self / self.marginalize([self.child]))._values
         margin = self.marginalize([self.child])._values
         np.testing.assert_allclose(margin, np.ones_like(margin))
-    
+
     def normalize(self):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
 
-    def sample(self, parent_states: dict = {}, nSamples: int = 1):
+    def sample(self,
+               parent_states: dict[CG_Node, int]|None = None,
+               num_samples: int = 1):
+        """Sample from the distribution given the states of the parents."""
+        if parent_states is None:
+            parent_states = {}
         parents = set(self.scope) - set([self.child])
         assert parents == set(parent_states.keys())
-        index = []
+        index: List[int|slice] = []
         for var in self.scope:
             if var in parents:
-                index.append(parent_states[var])
+                index.append(parent_states[var])  # Replace parent_states[var] with var
             else:
                 index.append(slice(None))
-        index = tuple(index)
-        dist = self._values[index]
+        index_tuple = tuple(index)
+        dist = self._values[index_tuple]
         np.testing.assert_almost_equal(dist.sum(), 1.0)
-        samples = np.random.choice(a=len(dist), size=nSamples, p=dist)
+        samples = np.random.choice(a=len(dist), size=num_samples, p=dist)
         return samples
 
-    def randomizeValues(self):
-        super().randomizeValues()
-        self._normalize()
-    
-    def setValues(self, values):
-        super().setValues(values)
+    def randomize_values(self):
+        super().randomize_values()
         self._normalize()
 
+    def set_values(self, new_values: np.ndarray):
+        super().set_values(new_values)
+        self._normalize()
 
 
 class DAG:
-    def __init__(self, nodes: List[DAG_Node]):
+    """Directed Acyclic Graph"""
+    def __init__(self, nodes: list[V]):
         self.nodes = sorted(nodes)
 
     def __repr__(self):
@@ -246,11 +300,9 @@ class DAG:
 
 
 class CG(DAG):
-    """ Causal Graph
+    """Causal Graph
     Contains a list of CG_Nodes. The information about connectivity is stored 
     at each node.
     """
-    def __init__(self, nodes: List[CG_Node]):
+    def __init__(self, nodes: list[CG_Node]):
         super().__init__(nodes)
-        
-

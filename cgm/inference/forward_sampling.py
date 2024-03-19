@@ -11,7 +11,7 @@ class ForwardSampler:
     cg = cgm.example_graphs.get_cg1()
     sampler = cgm.ForwardSampler(cg)
     samples = sampler.getNSamples(100)
-    print(samples.getValues())
+    print(samples.values)
 
 
     """
@@ -34,10 +34,10 @@ class ForwardSampler:
         sample = node.cpd.sample(parent_states)[0]
         self.current_sample[node] = sample
 
-    def getNSamples(self, N):
+    def getNSamples(self, N: int):
         scope = sorted(self.cg.nodes)
-        nDims = tuple(n.nStates for n in self.cg.nodes)
-        self.samples = Factor(scope, np.zeros(nDims, dtype=np.int))
+        nDims = tuple(n.num_states for n in self.cg.nodes)
+        self.samples = Factor(scope, np.zeros(nDims, dtype=int))
         for _ in range(N):
             sample = self.forward_sample()
             idx = tuple(sample[v] for v in self.samples.scope)
