@@ -5,13 +5,14 @@ The core module contains the basic building blocks of a Causal Graphical Model.
 from typing import List, Sequence, TypeVar, Generic
 import functools
 import numpy as np
-V = TypeVar('V', bound='Variable') # V can be Variable or Variable's subclass
+V = TypeVar('V', bound='Variable')  # V can be Variable or Variable's subclass
 D = TypeVar('D', bound='DAG_Node')
 
 
 class Variable:
     """A variable has a name and can taken on a finite number of states. 
     """
+
     def __init__(self, name: str, num_states: int):
         self._name = name
         self._num_states = num_states
@@ -38,6 +39,7 @@ class DAG_Node(Variable, Generic[D]):
     A node can have multiple parents and multiple children, but no cycles can be
     created.
     """
+
     def __init__(self, name: str, num_states: int):
         super().__init__(name, num_states)
         self._parents: set[D] = set()
@@ -58,7 +60,7 @@ class DAG_Node(Variable, Generic[D]):
     def ancestors(self) -> set[D]:
         """Return a set of all the ancestors of this node"""
         parents_remaining = self.parents.copy()
-        ancestors_acc= set()
+        ancestors_acc = set()
         while len(parents_remaining) > 0:
             node = parents_remaining.pop()
             ancestors_acc.add(node)
@@ -69,7 +71,7 @@ class DAG_Node(Variable, Generic[D]):
 
 class CG_Node(DAG_Node['CG_Node']):
     """A Causal Graph Node
-    
+
     A CG_Node is a variable in a Bayesian Network. 
     A node is associated with a single conditional probability 
     distribution (CPD), which is a distribution over the variable given its 
@@ -86,6 +88,7 @@ class CG_Node(DAG_Node['CG_Node']):
 
 
     """
+
     def __init__(self, name: str, num_states: int):
         super().__init__(name, num_states)
         # by default the cpd has no parents; the node is unconnected
@@ -101,7 +104,6 @@ class CG_Node(DAG_Node['CG_Node']):
         """Set the conditional probability distribution for this node."""
         self._cpd = cpd
         self.parents = set(self.cpd.scope) - set([self])
-
 
 
 class Factor(Generic[V]):
@@ -132,6 +134,7 @@ class Factor(Generic[V]):
     >>> phi1.marginalize([A, B])
 
     """
+
     def __init__(self,
                  scope: Sequence[V],
                  values: np.ndarray | None = None):
@@ -221,16 +224,16 @@ class Factor(Generic[V]):
 
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
-        return Factor(self.scope, (self / self.marginalize(self.scope)).values)        
+        return Factor(self.scope, (self / self.marginalize(self.scope)).values)
 
-    def increment_at_index(self, index: tuple[int], amount):
+    def increment_at_index(self, index: tuple[int, ...], amount):
         """Increment the value of the factor at a particular index by amount."""
         self._values[index] += amount
 
 
 class CPD(Factor[CG_Node]):
     """Conditional Probability Distribution
-    
+
     This is a type of factor with additional constraints. One variable in its
     scope is the child node, the others are the parents. The CPD must sum to 1
     for every particular value of the child node. Additionally, the CPD cannot
@@ -245,10 +248,11 @@ class CPD(Factor[CG_Node]):
     >>> phi3 = cgm.CPD(C, [])
 
     """
+
     def __init__(self,
                  child: CG_Node,
-                 parents: list[CG_Node]|None=None,
-                 values: np.ndarray|None=None):
+                 parents: list[CG_Node] | None = None,
+                 values: np.ndarray | None = None):
         self._child = child
         if parents is None:
             parents = []
@@ -301,25 +305,12 @@ class CPD(Factor[CG_Node]):
         super().set_values(new_values)
         self._normalize()
 
-    def sample(self,
-               parent_states: dict[CG_Node, int]|None = None,
-               num_samples: int = 1):
-        """Sample from the distribution given the states of the parents."""
-        if parent_states is None:
-            parent_states = {}
-        parents = set(self.scope) - set([self.child])
-        assert parents == set(parent_states.keys())
-        index: List[int|slice] = []
-        for var in self.scope:
-            if var in parents:
-                index.append(parent_states[var])  # Replace parent_states[var] with var
-            else:
-                index.append(slice(None))
-        index_tuple = tuple(index)
-        dist = self._values[index_tuple]
-        np.testing.assert_almost_equal(dist.sum(), 1.0)
-        samples = np.random.choice(a=len(dist), size=num_samples, p=dist)
-        return samples
+    def sample(self, num_samples: int, rng: np.random.Generator) -> tuple[np.ndarray, np.random.Generator]:
+        """Sample from the distribution"""
+        samples = rng.choice(a=len(self.values),
+                             size=num_samples,
+                             p=self.values)
+        return samples, rng
 
     def condition(self, parent_states: dict[CG_Node, int]) -> 'CPD':
         """Condition on a set of variables.
@@ -335,10 +326,10 @@ class CPD(Factor[CG_Node]):
         specified_parents = set(parent_states.keys())
         unspecified_parents = set(self.parents) - specified_parents
         assert specified_parents.issubset(set(self.parents))
-        index: list[int|slice] = []
+        index: list[int | slice] = []
         for var in self.scope:
             if var in specified_parents:
-                index.append(parent_states[var])  # Replace parent_states[var] with var
+                index.append(parent_states[var])
             else:
                 index.append(slice(None))
         index_tuple = tuple(index)
@@ -348,10 +339,10 @@ class CPD(Factor[CG_Node]):
                    values=cond_values)
 
 
-
-class DAG:
+class DAG(Generic[D]):
     """Directed Acyclic Graph"""
-    def __init__(self, nodes: list[V]):
+
+    def __init__(self, nodes: Sequence[D]):
         self.nodes = sorted(nodes)
 
     def __repr__(self):
@@ -362,10 +353,11 @@ class DAG:
         return s
 
 
-class CG(DAG):
+class CG(DAG[CG_Node]):
     """Causal Graph
     Contains a list of CG_Nodes. The information about connectivity is stored 
     at each node.
     """
+
     def __init__(self, nodes: list[CG_Node]):
         super().__init__(nodes)

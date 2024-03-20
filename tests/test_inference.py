@@ -132,7 +132,12 @@ def test_forward_sample():
     logging.debug('Testing forward_sample()')
     cg = cgm.get_cg2()
     rain, season, slippery, sprinkler, wet = cg.nodes
-    sampler = cgm.inference.forward_sampling.ForwardSampler(cg)
-    samples = sampler.getNSamples(1000)
-    marginal = sampler.getSampledMarginal({season})
-    logging.debug(f'Season count: {marginal.values}')
+    sampler = cgm.inference.forward_sampling.ForwardSampler(cg, 30)
+    num_samples = 1000
+    samples = sampler.get_n_samples(num_samples)
+    marginal = sampler.get_sampled_marginal({season})
+    expected_season = np.array([.25, .25, .25, .25])
+    npt.assert_allclose(marginal.normalize().values,
+                        expected_season,
+                        rtol=.2)
+    logging.debug(f'Season count: {marginal.normalize().values}')
