@@ -221,18 +221,7 @@ class Factor(Generic[V]):
 
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
-        return Factor(self.scope, (self / self.marginalize(self.scope)).values)
-
-    def condition(self, values: dict):
-        """
-        Condition on a set of variables at particular values of those variables.
-        values is a dictionary where each key is a variable to condition on and
-        the value is an integer representing the index to condition on. 
-
-        The scope of the returned factor will exclude all the variables 
-        conditioned on. 
-        """
-        raise NotImplementedError  # implementation needs to be added
+        return Factor(self.scope, (self / self.marginalize(self.scope)).values)        
 
     def increment_at_index(self, index: tuple[int], amount):
         """Increment the value of the factor at a particular index by amount."""
@@ -304,6 +293,14 @@ class CPD(Factor[CG_Node]):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
 
+    def randomize_values(self):
+        super().randomize_values()
+        self._normalize()
+
+    def set_values(self, new_values: np.ndarray):
+        super().set_values(new_values)
+        self._normalize()
+
     def sample(self,
                parent_states: dict[CG_Node, int]|None = None,
                num_samples: int = 1):
@@ -324,13 +321,32 @@ class CPD(Factor[CG_Node]):
         samples = np.random.choice(a=len(dist), size=num_samples, p=dist)
         return samples
 
-    def randomize_values(self):
-        super().randomize_values()
-        self._normalize()
+    def condition(self, parent_states: dict[CG_Node, int]) -> 'CPD':
+        """Condition on a set of variables.
 
-    def set_values(self, new_values: np.ndarray):
-        super().set_values(new_values)
-        self._normalize()
+        Condition on a set of variables at particular values of those variables.
+        parent_states is a dictionary where each key is a variable to condition 
+        on and the value is an integer representing the index to condition on. 
+
+        The scope of the returned factor will exclude all the variables 
+        conditioned on. 
+        """
+
+        specified_parents = set(parent_states.keys())
+        unspecified_parents = set(self.parents) - specified_parents
+        assert specified_parents.issubset(set(self.parents))
+        index: list[int|slice] = []
+        for var in self.scope:
+            if var in specified_parents:
+                index.append(parent_states[var])  # Replace parent_states[var] with var
+            else:
+                index.append(slice(None))
+        index_tuple = tuple(index)
+        cond_values = self.values[index_tuple]
+        return CPD(child=self.child,
+                   parents=list(unspecified_parents),
+                   values=cond_values)
+
 
 
 class DAG:
