@@ -363,31 +363,34 @@ class CPD(Factor[CG_Node]):
         super().set_values(new_values)
         self._normalize()
 
-    def sample(self, num_samples: int, rng: np.random.Generator) -> tuple[np.ndarray, np.random.Generator]:
+    def sample(self,
+               num_samples: int,
+               rng: np.random.Generator) -> tuple[np.ndarray, 
+                                                  np.random.Generator]:
         """Sample from the distribution"""
         samples = rng.choice(a=len(self.values),
                              size=num_samples,
                              p=self.values)
         return samples, rng
 
-    def condition(self, parent_states: dict[CG_Node, int]) -> 'CPD':
+    def condition(self, condition_dict: dict[CG_Node, int]) -> 'CPD':
         """Condition on a set of variables.
 
         Condition on a set of variables at particular values of those variables.
-        parent_states is a dictionary where each key is a variable to condition 
+        condition_dict is a dictionary where each key is a variable to condition 
         on and the value is an integer representing the index to condition on. 
 
         The scope of the returned factor will exclude all the variables 
         conditioned on. 
         """
 
-        specified_parents = set(parent_states.keys())
+        specified_parents = set(condition_dict.keys())
         unspecified_parents = set(self.parents) - specified_parents
         assert specified_parents.issubset(set(self.parents))
         index: list[int | slice] = []
         for var in self.scope:
             if var in specified_parents:
-                index.append(parent_states[var])
+                index.append(condition_dict[var])
             else:
                 index.append(slice(None))
         index_tuple = tuple(index)
