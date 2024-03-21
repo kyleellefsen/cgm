@@ -1,3 +1,3 @@
 from .core import *
-from .inference import *
-from .example_graphs import *
+from . import example_graphs
+from . import inference

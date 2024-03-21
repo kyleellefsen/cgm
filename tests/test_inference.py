@@ -47,19 +47,19 @@ def generate_clustergraph1():
     phi5 = cgm.Factor([B, E])
     phi6 = cgm.Factor([B, D])
     phi7 = cgm.Factor([B, D, F])
-    psi1 = cgm.Cluster([phi1])
-    psi2 = cgm.Cluster([phi2, phi3, phi6])
-    psi3 = cgm.Cluster([phi7])
-    psi4 = cgm.Cluster([phi5])
-    psi5 = cgm.Cluster([phi4])
-    cgm.ClusterEdge([psi1, psi2], [C])
-    cgm.ClusterEdge([psi1, psi4], [B])
-    cgm.ClusterEdge([psi2, psi4], [B])
-    cgm.ClusterEdge([psi2, psi5], [D])
-    cgm.ClusterEdge([psi3, psi4], [B])
-    cgm.ClusterEdge([psi3, psi5], [D])
-    cgm.ClusterEdge([psi4, psi5], [E])
-    return cgm.ClusterGraph([psi1, psi2, psi3, psi4, psi5])
+    psi1 = cgm.inference.Cluster([phi1])
+    psi2 = cgm.inference.Cluster([phi2, phi3, phi6])
+    psi3 = cgm.inference.Cluster([phi7])
+    psi4 = cgm.inference.Cluster([phi5])
+    psi5 = cgm.inference.Cluster([phi4])
+    cgm.inference.ClusterEdge([psi1, psi2], [C])
+    cgm.inference.ClusterEdge([psi1, psi4], [B])
+    cgm.inference.ClusterEdge([psi2, psi4], [B])
+    cgm.inference.ClusterEdge([psi2, psi5], [D])
+    cgm.inference.ClusterEdge([psi3, psi4], [B])
+    cgm.inference.ClusterEdge([psi3, psi5], [D])
+    cgm.inference.ClusterEdge([psi4, psi5], [E])
+    return cgm.inference.ClusterGraph([psi1, psi2, psi3, psi4, psi5])
 
 def generate_clustergraph_chain():
     """ From Coursera PGM Course 2, Week 2, Video: Clique Tree Algorithm 
@@ -75,16 +75,16 @@ def generate_clustergraph_chain():
     phi3 = cgm.CPD(C, [D])
     phi4 = cgm.CPD(D, [E])
     phi5 = cgm.CPD(E, [])
-    psi1 = cgm.Cluster([phi1])
-    psi2 = cgm.Cluster([phi2])
-    psi3 = cgm.Cluster([phi3])
-    psi4 = cgm.Cluster([phi4])
-    psi5 = cgm.Cluster([phi5])
-    cgm.ClusterEdge([psi1, psi2], [B])
-    cgm.ClusterEdge([psi2, psi3], [C])
-    cgm.ClusterEdge([psi3, psi4], [D])
-    cgm.ClusterEdge([psi4, psi5], [E])
-    g = cgm.ClusterGraph([psi1, psi2, psi3, psi4, psi5])
+    psi1 = cgm.inference.Cluster([phi1])
+    psi2 = cgm.inference.Cluster([phi2])
+    psi3 = cgm.inference.Cluster([phi3])
+    psi4 = cgm.inference.Cluster([phi4])
+    psi5 = cgm.inference.Cluster([phi5])
+    cgm.inference.ClusterEdge([psi1, psi2], [B])
+    cgm.inference.ClusterEdge([psi2, psi3], [C])
+    cgm.inference.ClusterEdge([psi3, psi4], [D])
+    cgm.inference.ClusterEdge([psi4, psi5], [E])
+    g = cgm.inference.ClusterGraph([psi1, psi2, psi3, psi4, psi5])
     return g
 
 def test_clustergraph1():
@@ -130,7 +130,7 @@ def test_roundrobin_on_chain():
 
 def test_forward_sample():
     logging.debug('Testing forward_sample()')
-    cg = cgm.get_cg2()
+    cg = cgm.example_graphs.get_cg2()
     rain, season, slippery, sprinkler, wet = cg.nodes
     sampler = cgm.inference.forward_sampling.ForwardSampler(cg, 30)
     num_samples = 1000
