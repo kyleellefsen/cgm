@@ -1,10 +1,8 @@
 name: Publish to PyPi
 on:
-  push:
-    branches:
-      - 'releases/**'  # Ensures this only runs on pushes to release branches
-      - '!releases/**-alpha'
-      - '!releases/**-beta'
+  # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#release
+  release:
+    types: [released]
 jobs:
   publish: 
     name: publish
