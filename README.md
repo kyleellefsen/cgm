@@ -1,7 +1,7 @@
 # Causal Graphical Models
 
 [![CGM Tests](https://github.com/kyleellefsen/cgm/actions/workflows/cgm_tests.yml/badge.svg)](https://github.com/kyleellefsen/cgm/actions/workflows/cgm_tests.yml)
-[![PyPi Publish](https://github.com/kyleellefsen/cgm/actions/workflows/publish_to_pypi.yml/badge.svg)](https://github.com/kyleellefsen/cgm/actions/workflows/publish_to_pypi.yml)
+[![PyPi Publish](https://github.com/kyleellefsen/cgm/actions/workflows/publish_to_pypi.yml/badge.svg?event=release)](https://github.com/kyleellefsen/cgm/actions/workflows/publish_to_pypi.yml?query=event%3Arelease)
 [![PyPi Version](https://img.shields.io/pypi/v/cgm)](https://pypi.org/project/cgm/)
 ![PyPI - Status](https://img.shields.io/pypi/status/cgm)
 ![PyPI - Format](https://img.shields.io/pypi/format/cgm)
