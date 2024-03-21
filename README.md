@@ -4,6 +4,7 @@
 [![PyPi Version](https://img.shields.io/pypi/v/cgm.svg)](https://pypi.org/project/cgm/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kyleellefsen/cgm/blob/master/LICENSE)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
+[![Python Version](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkyleellefsen%2Fcgm%2Fmaster%2Fpyproject.toml)](https://www.python.org/)
 
 
 
