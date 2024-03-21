@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - 'releases/**'  # Ensures this only runs on pushes to release branches
+      - '!releases/**-alpha'
+      - '!releases/**-beta'
 jobs:
   publish: 
     name: publish
