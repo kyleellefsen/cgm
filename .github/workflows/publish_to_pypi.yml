@@ -1,5 +1,8 @@
 name: Publish to PyPi
-on: [push]
+on:
+  push:
+    branches:
+      - 'releases/**'  # Ensures this only runs on pushes to release branches
 jobs:
   publish: 
     name: publish
