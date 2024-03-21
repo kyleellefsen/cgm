@@ -5,7 +5,7 @@ python setup.py sdist bdist_wheel
 twine upload dist/*
 """
 from os import path
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages  # type: ignore
 
 pwd = path.abspath(path.dirname(__file__))
 with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
@@ -14,7 +14,7 @@ with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
 # https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
     name='cgm',
-    version='0.0.5',
+    version='0.0.6',
     description='Causal Graphical Models',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -32,6 +32,9 @@ setup(
     ],
     keywords='cgm, pgm, dag, causal inference, factors',
     packages=find_packages(exclude=('test', 'docs')),
+    package_data = {
+        'cgm': ['py.typed'],
+    },
     python_requires='>=3.7, <4',
     install_requires=['numpy'],
     project_urls={
