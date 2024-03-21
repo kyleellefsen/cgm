@@ -1,13 +1,12 @@
 import logging
-from ..core import Factor, CG_Node, CG
 import cgm
 
 
 class DagVariableElimination:
-    def __init__(self, cg: CG):
+    def __init__(self, cg: cgm.CG):
         self.cg = cg
 
-    def variable_elimination(self, nodes_to_eliminate: list[CG_Node]):
+    def variable_elimination(self, nodes_to_eliminate: list[cgm.CG_Node]):
         """Implements the variable elimination algorithm over a CG.
         Specify a list of nodes to eliminate, in order of elimination
         """
@@ -18,7 +17,7 @@ class DagVariableElimination:
             logging.debug(factors)
         return factors
 
-    def _eliminate_node(self, node_to_eliminate: CG_Node, factors: set[cgm.CPD]):
+    def _eliminate_node(self, node_to_eliminate: cgm.CG_Node, factors: set[cgm.CPD]):
         factors_to_combine = [f for f in factors if node_to_eliminate in f.scope]
         intermediate_factor = factors_to_combine[0]
         for f in factors_to_combine[1:]:
