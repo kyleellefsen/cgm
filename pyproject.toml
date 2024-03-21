@@ -34,6 +34,6 @@ where = ["src"]
 cgm = ["py.typed"]
 
 [tool.pytest.ini_options]
-addopts = [
-    "--import-mode=importlib",
-]
+addopts = [ "--import-mode=importlib",]
+testpaths = ["tests"]
+pythonpath = ["src"]
