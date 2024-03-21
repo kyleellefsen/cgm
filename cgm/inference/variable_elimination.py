@@ -1,25 +1,24 @@
-import numpy as np
-from typing import List
 import logging
-from ..core import Variable, Factor, CG_Node, CPD, CG
+from ..core import Factor, CG_Node, CG
+import cgm
 
 
 class DagVariableElimination:
     def __init__(self, cg: CG):
         self.cg = cg
 
-    def variable_elimination(self, nodes_to_eliminate: List[CG_Node]):
+    def variable_elimination(self, nodes_to_eliminate: list[CG_Node]):
         """Implements the variable elimination algorithm over a CG.
         Specify a list of nodes to eliminate, in order of elimination
         """
-        factors = [n.cpd for n in self.cg.nodes]
+        factors: set[cgm.CPD] = set(n.cpd for n in self.cg.nodes)
         for n in nodes_to_eliminate:
-            logging.debug(f"Eliminating {n}")
+            logging.debug("Eliminating %s", n)
             factors = self._eliminate_node(n, factors)
             logging.debug(factors)
         return factors
 
-    def _eliminate_node(self, node_to_eliminate: CG_Node, factors: List[Factor]):
+    def _eliminate_node(self, node_to_eliminate: CG_Node, factors: set[cgm.CPD]):
         factors_to_combine = [f for f in factors if node_to_eliminate in f.scope]
         intermediate_factor = factors_to_combine[0]
         for f in factors_to_combine[1:]:
@@ -36,5 +35,4 @@ class DagVariableElimination:
         nodes = self.cg.nodes
         return {n_target : set.union(*[set(n.cpd.scope) for n in nodes if n_target in n.cpd.scope]) \
                 - set([n_target]) for n_target in nodes}
-
 

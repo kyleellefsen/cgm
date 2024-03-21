@@ -4,6 +4,7 @@ The core module contains the basic building blocks of a Causal Graphical Model.
 """
 from typing import List, Sequence, TypeVar, Generic
 import functools
+import collections
 import numpy as np
 V = TypeVar('V', bound='Variable')  # V can be Variable or Variable's subclass
 D = TypeVar('D', bound='DAG_Node')
@@ -106,6 +107,23 @@ class CG_Node(DAG_Node['CG_Node']):
         self.parents = set(self.cpd.scope) - set([self])
 
 
+class ScopeShapeMismatchError(Exception):
+    """Exception raised when the shape of a factor's scope does not match 
+    the shape of its stored values array."""
+    def __init__(self, expected_shape, actual_shape):
+        message = f"Expected shape {expected_shape}, but got {actual_shape}. " \
+                   "The factor's scope must correspond to the shape of the " \
+                   "stored values array."
+        super().__init__(message)
+
+class NonUniqueVariableNamesError(Exception):
+    """Exception raised when the variables in a factor's scope do not have unique names."""
+    def __init__(self, non_unique_names):
+        message = "Variables in the scope have non-unique names: "\
+                  f"{non_unique_names}. All variables in the scope must have "\
+                   "unique names."
+        super().__init__(message)
+
 class Factor(Generic[V]):
     """A factor is a function that has a list of variables in its scope, and 
     maps every combination of variable values to a real number. In this 
@@ -115,8 +133,7 @@ class Factor(Generic[V]):
     entry can be accessed at self.values[1, 0, 1]. If the ndarray isn't 
     specified, a random one will be created. 
 
-    The scope of a factor must is sorted by the name of the variables. All 
-    variables must have unique names. 
+    All variables in the scope must have unique names. 
 
     Factors ϕ1 and ϕ2 can be multiplied and divided by ϕ1 * ϕ2 and ϕ1 / ϕ2. 
     A factor can be marginalized over a subset of its scope. For example, to 
@@ -169,11 +186,17 @@ class Factor(Generic[V]):
 
     def _check_input(self):
         # all variable names have to be unique
+        var_counts = collections.Counter([el.name for el in self.scope])
+        if any([v > 1 for v in var_counts.values()]):
+            non_unique_names = [k for k, v in var_counts.items() if v > 1]
+            raise NonUniqueVariableNamesError(non_unique_names)
         assert len({s.name for s in self.scope}) == len(self.scope)
-        # all variable names must be in order
-        assert sorted(self.scope) == self.scope
-        # size of scope much match nDims of factor
-        assert len(self.scope) == len(self._values.shape)
+
+        # shape of scope much match shape of factor
+        scope_shape = np.array([s.num_states for s in self.scope])
+        if not np.array_equal(self.values.shape, scope_shape):
+            raise ScopeShapeMismatchError(expected_shape=scope_shape,
+                                          actual_shape=self.values.shape)
 
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
@@ -188,30 +211,31 @@ class Factor(Generic[V]):
         """
         scope1 = self.scope
         scope2 = other.scope
-        scope_union = sorted(list(set(scope1).union(scope2)))
-        dims2insert1 = np.where([s not in scope1 for s in scope_union])[0]
-        dims2insert2 = np.where([s not in scope2 for s in scope_union])[0]
-        aa = self._values
-        for i in dims2insert1:
-            aa = np.expand_dims(aa, i)
-        bb = other._values
-        for i in dims2insert2:
-            bb = np.expand_dims(bb, i)
-        return Factor(scope_union, np.multiply(aa, bb))
+        scope_2_but_not_1 = [sc for sc in scope2 if sc not in scope1]
+        result_scope = list(scope1) + scope_2_but_not_1
+        scope2_padded = list(scope2) + [sc for sc in scope1 if sc not in scope2]
+        arr1 = np.expand_dims(self.values, axis=tuple(range(len(scope1), len(result_scope))))
+        arr2 = np.expand_dims(other.values, axis=tuple(range(len(scope2), len(result_scope))))
+        destination_mapping = {value: index for index, value in enumerate(result_scope)}
+        arr2_dst = [destination_mapping[element] for element in scope2_padded]
+        arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
+        return Factor(result_scope, np.multiply(arr1, arr2))
 
     def __truediv__(self, other: 'Factor'):
         scope1 = self.scope
         if isinstance(other, (int, float)):
-            return Factor(scope1, np.divide(self._values, other))
+            return Factor(scope1, np.divide(self.values, other))
         scope2 = other.scope
-        scope_intersection = sorted(list(set(scope1).intersection(scope2)))
         # The scope of the denominator must be a subset of that of the numerator
-        assert scope_intersection == scope2
-        dims2insert = np.where([s not in scope2 for s in scope1])[0]
-        bb = other._values
-        for i in dims2insert:
-            bb = np.expand_dims(bb, i)
-        return Factor(scope1, np.divide(self._values, bb))
+        assert set(scope1).intersection(scope2) == set(scope2)
+        result_scope = list(scope1)
+        scope2_padded = list(scope2) + [sc for sc in scope1 if sc not in scope2]
+        arr1 = self.values
+        arr2 = np.expand_dims(other.values, axis=tuple(range(len(scope2), len(result_scope))))
+        destination_mapping = {value: index for index, value in enumerate(result_scope)}
+        arr2_dst = [destination_mapping[element] for element in scope2_padded]
+        arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
+        return Factor(result_scope, np.divide(arr1, arr2))
 
     def marginalize(self, variables: List[Variable]):
         """ 
@@ -251,13 +275,13 @@ class CPD(Factor[CG_Node]):
 
     def __init__(self,
                  child: CG_Node,
-                 parents: list[CG_Node] | None = None,
+                 parents: Sequence[CG_Node] | None = None,
                  values: np.ndarray | None = None):
         self._child = child
         if parents is None:
             parents = []
         self._parents = parents
-        scope: Sequence[CG_Node] = sorted(list(set([child] + parents)))
+        scope: list[CG_Node] = [child] + list(parents)
         super().__init__(scope, values)
         self.child = child
         self._normalize()
@@ -274,7 +298,7 @@ class CPD(Factor[CG_Node]):
         child.cpd = self
 
     @property
-    def parents(self) -> list[CG_Node]:
+    def parents(self) -> Sequence[CG_Node]:
         """Return the parents of the CPD."""
         return self._parents
 
