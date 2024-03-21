@@ -5,7 +5,7 @@ Inside the main directory, run with:
 import pytest
 import numpy as np
 import numpy.testing as npt
-import cgm as cgm
+import cgm
 
 def test_generate_graph1():
     graph = cgm.example_graphs.get_cg1()
