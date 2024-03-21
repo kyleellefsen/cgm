@@ -1,5 +1,12 @@
 # Causal Graphical Models
 
+[![CGM Tests](https://github.com/kyleellefsen/cgm/actions/workflows/cgm_tests.yml/badge.svg)](https://github.com/kyleellefsen/cgm/actions/workflows/cgm_tests.yml)
+[![PyPi Version](https://img.shields.io/pypi/v/cgm.svg)](https://pypi.org/project/cgm/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kyleellefsen/cgm/blob/master/LICENSE)
+[![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
+
+
+
 A python library for building causal graphical models, closely following Daphne 
 Koller's Coursera course on Probabilistic Graphical Models, and her 2009 book 
 _Probabilistic Graphical Models: Principles and Techniques_. 

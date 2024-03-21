@@ -5,7 +5,7 @@ Inside the main directory, run with:
 import pytest
 import numpy as np
 import numpy.testing as npt
-import cgm
+import cgm as cgm
 
 def test_generate_graph1():
     graph = cgm.example_graphs.get_cg1()
@@ -122,6 +122,23 @@ def test_CPD_condition():
     expected_values = np.array([values_a1[selected_b_index, :],
                                 1 - values_a1[selected_b_index, :]])
     npt.assert_allclose(phi1_cond.values, expected_values)
+
+def test_factor_condition():
+    num_states_a = 2
+    num_states_b = 3
+    num_states_c = 4
+    a = cgm.Variable('a', num_states_a)
+    b = cgm.Variable('b', num_states_b)
+    c = cgm.Variable('c', num_states_c)
+    phi1 = cgm.Factor[cgm.Variable]([a, b, c], 5 * np.ones((num_states_a, 
+                                                            num_states_b, 
+                                                            num_states_c)))
+    selected_b_index = 1
+    phi1_cond = phi1.condition({b: selected_b_index})
+    assert phi1_cond.scope == [a, c]
+    assert phi1_cond.values.shape == (num_states_a, num_states_c)
+    npt.assert_allclose(phi1_cond.values, 5 * np.ones((num_states_a, 
+                                                       num_states_c)))
     
 def test_factor_multiplication():
     num_states_a = 2
@@ -194,3 +211,22 @@ def test_factor_division_by_factor():
     assert result.scope == [a, b, c]
     assert result.values.shape == (num_states_a, num_states_b, num_states_c)
     assert np.allclose(result.values, np.divide(np.ones((num_states_a, num_states_b, num_states_c)), np.ones((num_states_b, num_states_c))))
+
+def test_factor_argmax():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.Variable('a', num_states_a)
+    b = cgm.Variable('b', num_states_b)
+    phi = cgm.Factor[cgm.Variable]([a, b], np.array([[1, 2, 3], [4, 5, 6]]))
+
+    result = phi.argmax(a)
+
+    assert result.scope == [b]
+    assert result.values.shape == (num_states_b,)
+    assert np.allclose(result.values, np.array([1, 1, 1]))
+
+    result = phi.argmax(b)
+
+    assert result.scope == [a]
+    assert result.values.shape == (num_states_a,)
+    assert np.allclose(result.values, np.array([2, 2]))

@@ -245,6 +245,16 @@ class Factor(Generic[V]):
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
         return Factor(reduced_scope, np.sum(self._values, axis=axes))
+    
+    def argmax(self, variable: V):
+        """ 
+        Find the state of the variables that maximizes the factor
+        example: phi3.argmax([A, B]) 
+        """
+        axis = self.scope.index(variable)
+        reduced_scope = [s for s in self.scope if s != variable]
+        max_indices = np.argmax(self._values, axis=axis)
+        return Factor[V](reduced_scope, max_indices)
 
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
@@ -253,6 +263,30 @@ class Factor(Generic[V]):
     def increment_at_index(self, index: tuple[int, ...], amount):
         """Increment the value of the factor at a particular index by amount."""
         self._values[index] += amount
+
+    def condition(self, condition_dict: dict[V, int]) -> 'Factor':
+        """Condition on a set of variables.
+
+        Condition on a set of variables at particular values of those variables.
+        condition_dict is a dictionary where each key is a variable to condition 
+        on and the value is an integer representing the index to condition on. 
+
+        The scope of the returned factor will exclude all the variables 
+        conditioned on. 
+        """
+
+        specified_vars = set(condition_dict.keys())
+        new_scope = [v for v in self.scope if v not in specified_vars]
+        assert specified_vars.issubset(set(self.scope))
+        index: list[int | slice] = []
+        for var in self.scope:
+            if var in specified_vars:
+                index.append(condition_dict[var])
+            else:
+                index.append(slice(None))
+        index_tuple = tuple(index)
+        cond_values = self.values[index_tuple]
+        return Factor(list(new_scope), cond_values)
 
 
 class CPD(Factor[CG_Node]):
