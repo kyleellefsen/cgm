@@ -399,6 +399,9 @@ class CPD(Factor[CG_Node]):
                    parents=list(unspecified_parents),
                    values=cond_values)
 
+    def __repr__(self):
+        return "ϕ(" + str(self.child) + " | " + ", ".join([f"{s}" for s in self.parents]) + ")"
+
 
 class DAG(Generic[D]):
     """Directed Acyclic Graph"""
