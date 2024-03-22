@@ -140,16 +140,16 @@ class Factor(Generic[V]):
     marginalize out variables A and B, call ϕ.marginalize([A, B]).
 
     Example:
-    >>> A = cgm.Variable('A', 2)
-    >>> B = cgm.Variable('B', 2)
-    >>> C = cgm.Variable('C', 2)
-    >>> phi1 = cgm.Factor([A, B, C])
-    >>> phi2 = cgm.Factor([B, C])
-    >>> phi3 = cgm.Factor([B, C])
-    >>> phi1 * phi2
-    >>> phi1 / phi2
-    >>> phi1.marginalize([A, B])
-
+    
+        A = cgm.Variable('A', 2)
+        B = cgm.Variable('B', 2)
+        C = cgm.Variable('C', 2)
+        phi1 = cgm.Factor([A, B, C])
+        phi2 = cgm.Factor([B, C])
+        phi3 = cgm.Factor([B, C])
+        phi1 * phi2
+        phi1 / phi2
+        phi1.marginalize([A, B])
     """
 
     def __init__(self,

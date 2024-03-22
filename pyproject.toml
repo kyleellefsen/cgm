@@ -1,3 +1,6 @@
+# I created the documentation with 
+# >> sphinx-quickstart ./docs -p "Causal Graphical Models" -a "Kyle Ellefsen" -l "en" -r="0.0.9" --no-sep --ext-autodoc --ext-doctest --ext-coverage
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -37,3 +40,8 @@ cgm = ["py.typed"]
 addopts = [ "--import-mode=importlib",]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.mypy]
+exclude = '''(?x)(
+    | ^\.?docs/    # or any path starting with "./docs" or "docs/"
+)'''

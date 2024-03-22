@@ -1,5 +1,4 @@
-"""
-This module provides a class for performing forward sampling on a graphical 
+"""This module provides a class for performing forward sampling on a graphical 
 model.
 """
 import numpy as np
@@ -8,9 +7,10 @@ import cgm
 SampleDict = dict[cgm.CG_Node, int]
 PartialSampleDict = dict[cgm.CG_Node, int|None]
 
+
+
 class ForwardSampler:
-    """
-    A class for performing forward sampling on a graphical model.
+    """A class for performing forward sampling on a graphical model.
 
     Attributes:
         cg (cgm.CG): The graphical model to perform forward sampling on.
@@ -19,17 +19,18 @@ class ForwardSampler:
         rng (np.random.Generator): The random number generator.
 
     Example Usage:
-    ```
-    cg = cgm.example_graphs.get_cg1()
-    sampler = cgm.ForwardSampler(cg, seed=30)
-    samples = sampler.get_n_samples(100)
-    print(samples.values)
-    ```
+
+        cg = cgm.example_graphs.get_cg1()
+        sampler = cgm.ForwardSampler(cg, seed=30)
+        samples = sampler.get_n_samples(100)
+        print(samples.values)
+    
+
+
     """
 
     def __init__(self, cg: cgm.CG, seed: int = 30):
-        """
-        Initializes a ForwardSampler object.
+        """Initializes a ForwardSampler object.
 
         Args:
             cg (cgm.CG): The graphical model to perform forward sampling on.
