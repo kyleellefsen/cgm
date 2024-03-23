@@ -117,6 +117,7 @@ class ScopeShapeMismatchError(Exception):
                    "stored values array."
         super().__init__(message)
 
+
 class NonUniqueVariableNamesError(Exception):
     """Exception raised when the variables in a factor's scope do not have unique names."""
     def __init__(self, non_unique_names):
@@ -125,6 +126,7 @@ class NonUniqueVariableNamesError(Exception):
                    "unique names."
         super().__init__(message)
 
+
 class Factor(Generic[V]):
     """A factor is a function that has a list of variables in its scope, and 
     maps every combination of variable values to a real number. In this 
@@ -132,7 +134,7 @@ class Factor(Generic[V]):
     factor's scope is the variables {A, B, C}, and each of these is a binary 
     variable, then to access the value of the factor for [A=1, B=0, C=1], the 
     entry can be accessed at self.values[1, 0, 1]. If the ndarray isn't 
-    specified, a random one will be created. 
+    specified, a random one will be created.
 
     All variables in the scope must have unique names. 
 
@@ -151,14 +153,25 @@ class Factor(Generic[V]):
         phi1 * phi2
         phi1 / phi2
         phi1.marginalize([A, B])
+
+    Args:
+        scope: A list of variables that are in the scope of the factor.
+        values: The values of the factor. If None, random values will be 
+            generated. If a scalar, all values will be set to that scalar.
+        rng: A numpy random number generator. Only used if values is None.
     """
 
     def __init__(self,
                  scope: Sequence[V],
-                 values: np.ndarray | None = None):
-        self.scope = scope
+                 values: np.ndarray | int | float | None = None,
+                 rng: np.random.Generator | None = None):
+        self._scope = scope
         if values is None:
-            self._values = self._get_random_values()
+            if rng is None:
+                rng = np.random.default_rng()
+            self._values = self._get_random_values(rng)
+        elif isinstance(values, (int, float)):
+            self._values = np.full(tuple(s.num_states for s in self.scope), values)
         else:
             self._values = values
         self._check_input()
@@ -172,17 +185,22 @@ class Factor(Generic[V]):
     def values(self) -> np.ndarray:
         """Return the values of the factor."""
         return self._values
+    
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Return the shape of the factor's values array."""
+        return tuple(s.num_states for s in self.scope)
+    
+    @property
+    def scope(self) -> Sequence[V]:
+        """Return the scope of the factor."""
+        return self._scope
 
     def set_values(self, new_values: np.ndarray):
         """Set the values of the factor to new_values."""
         # the dimension of the factor cannot be changed using this method
         assert self._values.shape == new_values.shape
         self._values = new_values
-        self._check_input()
-
-    def randomize_values(self):
-        """Set the values of the factor to random numbers between 0 and 1."""
-        self._values = self._get_random_values()
         self._check_input()
 
     def _check_input(self):
@@ -202,9 +220,9 @@ class Factor(Generic[V]):
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
 
-    def _get_random_values(self):
+    def _get_random_values(self, rng: np.random.Generator):
         num_dimensions = tuple(s.num_states for s in self.scope)
-        return np.random.uniform(size=num_dimensions)
+        return rng.uniform(size=num_dimensions)
 
     def __mul__(self, other: 'Factor'):
         """Factor product as defined in PGM Definition 4.2 (Koller 2009)."""
@@ -355,10 +373,6 @@ class CPD(Factor[CG_Node]):
     def normalize(self):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
-
-    def randomize_values(self):
-        super().randomize_values()
-        self._normalize()
 
     def set_values(self, new_values: np.ndarray):
         super().set_values(new_values)

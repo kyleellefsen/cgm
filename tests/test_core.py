@@ -26,6 +26,25 @@ def test_factor():
     margin = phi1.marginalize([b]).values
     npt.assert_allclose(margin, num_states_b * np.ones((num_states_a,)))
 
+def test_factor_creation_with_integer_value():
+    A = cgm.Variable('A', 2)
+    B = cgm.Variable('B', 2)
+    C = cgm.Variable('C', 2)
+    value = 5
+    factor = cgm.Factor([A, B, C], value)
+    expected_values = np.full((2, 2, 2), value)
+    np.testing.assert_array_equal(factor.values, expected_values)
+
+def test_cpd_creation_with_integer_value():
+    num_a_states = 6
+    A = cgm.CG_Node('A', num_a_states)
+    B = cgm.CG_Node('B', 3)
+    C = cgm.CG_Node('C', 3)
+    value = 5
+    factor = cgm.CPD(A, [B, C], value)
+    expected_values = np.full((num_a_states, 3, 3), 1 / num_a_states)
+    np.testing.assert_array_equal(factor.values, expected_values)
+
 def test_factor_unsorted_scope():
     num_states_a = 2
     num_states_b = 3
