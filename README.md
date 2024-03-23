@@ -26,10 +26,8 @@ The source for this project is available [here][src].
 ## Usage
 
 ```python
-import numpy as np
 import cgm
 
-np.random.seed(30)
 # Define all nodes
 A = cgm.CG_Node('A', num_states=3)
 B = cgm.CG_Node('B', 3)
@@ -45,3 +43,6 @@ graph = cgm.CG([A, B, C, D])
 
 [src]: https://github.com/kyleellefsen/cgm
 [numpy]: https://numpy.org/
+
+## Documentation
+[kyleellefsen.github.io/cgm](https://kyleellefsen.github.io/cgm/)
