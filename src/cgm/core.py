@@ -245,7 +245,7 @@ class Factor(Generic[V]):
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
         return Factor(reduced_scope, np.sum(self._values, axis=axes))
-    
+
     def argmax(self, variable: V):
         """ 
         Find the state of the variables that maximizes the factor
