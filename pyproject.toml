@@ -7,15 +7,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cgm"
-version = "0.0.10-alpha"
+version = "0.0.11-alpha"
 dependencies = [
     "numpy",
-    "sphinx_rtd_theme",
-    "myst_parser",
-    "sphinx-math-dollar",
-    "sphinx-autodoc2",
-    "sphinx-copybutton",
-    'sphinxcontrib.mermaid',
 ]
 requires-python = ">= 3.8"
 authors = [
@@ -32,6 +26,17 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
 ]
 keywords = ["cgm", "pgm", "dag", "causal inference", "factors"]
+
+[project.optional-dependencies]
+docs = [
+        "sphinx_rtd_theme",
+        "myst_parser",
+        "sphinx-math-dollar",
+        "sphinx-autodoc2",
+        "sphinx-copybutton",
+        "sphinxcontrib.mermaid",
+        "sphinx_tabs",
+]
 
 [project.urls]
 Source = "https://github.com/kyleellefsen/cgm"

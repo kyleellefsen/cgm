@@ -3,10 +3,7 @@
 ## Contents
 
 ```{toctree}
+source_code.md
 usage.md
-```
-
-```{toctree}
-:hidden:
 modules.md
 ```
