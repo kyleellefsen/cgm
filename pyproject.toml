@@ -14,7 +14,9 @@ dependencies = [
     "myst_parser",
     "sphinx-math-dollar",
     "sphinx-autodoc2",
-    "sphinx-copybutton"]
+    "sphinx-copybutton",
+    'sphinxcontrib.mermaid',
+]
 requires-python = ">= 3.8"
 authors = [
     {name = "Kyle Ellefsen", email = "kyleellefsen@gmail.com"},

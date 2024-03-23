@@ -16,10 +16,11 @@ release = version
 extensions = [
     "myst_parser",
     "autodoc2",
-    "sphinx_math_dollar",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
+    "sphinx_tabs.tabs",
     "sphinx_copybutton",
+    "sphinxcontrib.mermaid"
     # "sphinx.ext.todo",
     # "sphinx.ext.mathjax",
     # "sphinx.ext.ifconfig",
@@ -27,6 +28,22 @@ extensions = [
     # "sphinx.ext.githubpages",
     # "sphinx.ext.graphviz",
     # "sphinx.ext.doctest",
+]
+
+myst_enable_extensions = [
+    "amsmath",
+    "attrs_inline",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
 ]
 
 # Autodoc2 settings

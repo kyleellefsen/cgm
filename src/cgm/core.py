@@ -80,12 +80,13 @@ class CG_Node(DAG_Node['CG_Node']):
     states of the variable. 
 
     Example:
-    >>> A = cgm.CG_Node('A', 2)
-    >>> B = cgm.CG_Node('B', 2)
-    >>> C = cgm.CG_Node('C', 2)
-    >>> phi1 = cgm.CPD(A, [B])
-    >>> phi2 = cgm.CPD(B, [C])
-    >>> phi3 = cgm.CPD(C, [])
+
+        A = cgm.CG_Node('A', 2)
+        B = cgm.CG_Node('B', 2)
+        C = cgm.CG_Node('C', 2)
+        phi1 = cgm.CPD(A, [B])
+        phi2 = cgm.CPD(B, [C])
+        phi3 = cgm.CPD(C, [])
 
 
     """
@@ -206,9 +207,7 @@ class Factor(Generic[V]):
         return np.random.uniform(size=num_dimensions)
 
     def __mul__(self, other: 'Factor'):
-        """ 
-        Factor product as defined in PGM Definition 4.2 (Koller 2009)
-        """
+        """Factor product as defined in PGM Definition 4.2 (Koller 2009)."""
         scope1 = self.scope
         scope2 = other.scope
         scope_2_but_not_1 = [sc for sc in scope2 if sc not in scope1]
@@ -298,12 +297,14 @@ class CPD(Factor[CG_Node]):
     introduce cycles in the DAG.
 
     Example:
-    >>> A = cgm.CG_Node('A', 2)
-    >>> B = cgm.CG_Node('B', 2)
-    >>> C = cgm.CG_Node('C', 2)
-    >>> phi1 = cgm.CPD(A, [B])
-    >>> phi2 = cgm.CPD(B, [C])
-    >>> phi3 = cgm.CPD(C, [])
+    ```
+      A = cgm.CG_Node('A', 2)
+      B = cgm.CG_Node('B', 2)
+      C = cgm.CG_Node('C', 2)
+      phi1 = cgm.CPD(A, [B])
+      phi2 = cgm.CPD(B, [C])
+      phi3 = cgm.CPD(C, [])
+    ```
 
     """
 
@@ -400,7 +401,11 @@ class CPD(Factor[CG_Node]):
                    values=cond_values)
 
     def __repr__(self):
-        return "ϕ(" + str(self.child) + " | " + ", ".join([f"{s}" for s in self.parents]) + ")"
+        repr = "ϕ(" + str(self.child)
+        if len(self.parents) > 0:
+            repr += " | " + ", ".join([f"{s}" for s in self.parents])
+        repr += ")"
+        return repr
 
 
 class DAG(Generic[D]):
