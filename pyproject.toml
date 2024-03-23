@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cgm"
 version = "0.0.10-alpha"
-dependencies = ["numpy"]
+dependencies = ["numpy", "sphinx_rtd_theme"]
 requires-python = ">= 3.8"
 authors = [
     {name = "Kyle Ellefsen", email = "kyleellefsen@gmail.com"},
