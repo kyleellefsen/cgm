@@ -249,3 +249,47 @@ def test_factor_argmax():
     assert result.scope == [a]
     assert result.values.shape == (num_states_a,)
     assert np.allclose(result.values, np.array([2, 2]))
+
+
+def test_marginalize_cpd_2vars():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.CG_Node('a', num_states_a)
+    b = cgm.CG_Node('b', num_states_b)
+    values_a = np.array([[.11, .22, .33],
+                         [.89, .78, .67]])
+    phi1 = cgm.CPD(a, [b], values=values_a)
+    values_b = np.array([.1, .5, .4])
+    phi2 = cgm.CPD(b, [], values=values_b)
+    marginalized_cpd = phi1.marginalize_cpd(phi2)
+    expected_values = values_a @ values_b
+    npt.assert_allclose(marginalized_cpd.values, expected_values)
+
+
+def test_marginalize_cpd_3vars():
+    num_states_a = 2
+    num_states_b = 3
+    num_states_c = 4
+    a = cgm.CG_Node('a', num_states_a)
+    b = cgm.CG_Node('b', num_states_b)
+    c = cgm.CG_Node('c', num_states_c)
+    values_a1 = np.array([[.3, .8, .2, .7],
+                          [.7, .2, .8, .1],
+                          [.1, .5, .3, .9]])
+    values_a = np.array([values_a1, 1 - values_a1])
+    phi1 = cgm.CPD(a, [b, c], values=values_a)
+
+    values_bc = np.array([[.1, .1, .1, .1],
+                          [.3, .3, .3, .3],
+                          [.6, .6, .6, .6]])
+    phi2 = cgm.CPD(b, [c], values=values_bc)
+    marginalized_cpd = phi1.marginalize_cpd(phi2)
+
+    assert marginalized_cpd.child == a
+    assert marginalized_cpd.parents == [c]
+    assert marginalized_cpd.values.shape == (num_states_a, num_states_c)
+
+    summand = np.zeros((num_states_a, num_states_c))
+    for b_idx in range(num_states_b):
+        summand += values_a[:, b_idx, :] * values_bc[b_idx, :]
+    npt.assert_allclose(marginalized_cpd.values, summand)

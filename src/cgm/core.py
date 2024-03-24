@@ -185,12 +185,12 @@ class Factor(Generic[V]):
     def values(self) -> np.ndarray:
         """Return the values of the factor."""
         return self._values
-    
+
     @property
     def shape(self) -> tuple[int, ...]:
         """Return the shape of the factor's values array."""
         return tuple(s.num_states for s in self.scope)
-    
+
     @property
     def scope(self) -> Sequence[V]:
         """Return the scope of the factor."""
@@ -380,7 +380,7 @@ class CPD(Factor[CG_Node]):
 
     def sample(self,
                num_samples: int,
-               rng: np.random.Generator) -> tuple[np.ndarray, 
+               rng: np.random.Generator) -> tuple[np.ndarray,
                                                   np.random.Generator]:
         """Sample from the distribution"""
         samples = rng.choice(a=len(self.values),
@@ -414,12 +414,26 @@ class CPD(Factor[CG_Node]):
                    parents=list(unspecified_parents),
                    values=cond_values)
 
+    def marginalize_cpd(self, parent_cpd: 'CPD') -> 'CPD':
+        """Marginalize out a distribution over a parent variable.
+
+        Sum over all possible states of a set of parent variables, weighted
+        by how probable the parent is.
+        """
+        summand_var = parent_cpd.child  # This variable will be eliminated
+        assert parent_cpd.child in self.parents
+        assert set(self.parents) == set(parent_cpd.scope)
+        prod: Factor[CG_Node] = self * parent_cpd
+        summand = prod.marginalize([summand_var])
+        new_parents = [v for v in summand.scope if v != self.child]
+        return CPD(child=self.child, parents=new_parents, values=summand.values)
+
     def __repr__(self):
-        repr = "ϕ(" + str(self.child)
+        rep = "ϕ(" + str(self.child)
         if len(self.parents) > 0:
-            repr += " | " + ", ".join([f"{s}" for s in self.parents])
-        repr += ")"
-        return repr
+            rep += " | " + ", ".join([f"{s}" for s in self.parents])
+        rep += ")"
+        return rep
 
 
 class DAG(Generic[D]):
