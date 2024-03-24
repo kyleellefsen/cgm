@@ -187,6 +187,28 @@ print(phi_2)
 # ϕ(X)
 ```
 
+One can also marginalize a factor over a CPD:
+
+
+$$
+\begin{aligned}
+f(\phi(X, Y), P_{Y|X}(y|x)) &\doteq \sum_{y \in Y} \phi(X, Y=y) P_{Y|X}(Y=y | X) \\
+                            &\to \phi_{new}(X)
+\end{aligned}
+$$
+
+```python
+import cgm
+
+X = cgm.CG_Node('X', 2)
+Y = cgm.CG_Node('Y', 2)
+phi1 = cgm.Factor([X, Y])
+cpd = cgm.CPD(Y, [X])
+phi2 = phi1.marginalize_cpd(cpd)
+print(phi2)
+# ϕ(X)
+```
+
 ### CPD Marginalization
 
 It's common to want to marginalize over a parent variable in a conditional 

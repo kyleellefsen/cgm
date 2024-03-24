@@ -224,7 +224,7 @@ class Factor(Generic[V]):
         num_dimensions = tuple(s.num_states for s in self.scope)
         return rng.uniform(size=num_dimensions)
 
-    def __mul__(self, other: 'Factor'):
+    def __mul__(self, other: 'Factor') -> 'Factor':
         """Factor product as defined in PGM Definition 4.2 (Koller 2009)."""
         scope1 = self.scope
         scope2 = other.scope
@@ -238,7 +238,7 @@ class Factor(Generic[V]):
         arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
         return Factor(result_scope, np.multiply(arr1, arr2))
 
-    def __truediv__(self, other: 'Factor'):
+    def __truediv__(self, other: 'Factor') -> 'Factor':
         scope1 = self.scope
         if isinstance(other, (int, float)):
             return Factor(scope1, np.divide(self.values, other))
@@ -254,7 +254,7 @@ class Factor(Generic[V]):
         arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
         return Factor(result_scope, np.divide(arr1, arr2))
 
-    def marginalize(self, variables: List[Variable]):
+    def marginalize(self, variables: List[Variable]) -> 'Factor':
         """ 
         Sum over all possible states of a list of variables
         example: phi3.marginalize([A, B]) 
@@ -262,6 +262,32 @@ class Factor(Generic[V]):
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
         return Factor(reduced_scope, np.sum(self._values, axis=axes))
+
+    def marginalize_cpd(self, cpd: 'CPD') -> 'Factor':
+        """Marginalize out a conditional probability distribution.
+
+        Sum over all possible states of a set of the cpd variables, weighted
+        by how probable the c is.
+
+        $$
+            \phi_{\text{new}}(X) \gets \sum_{y \in Y} \phi_{1}(X, Y) P(Y|X)
+        $$
+
+        Example:
+
+            X = cgm.CG_Node('X', 2)
+            Y = cgm.CG_Node('Y', 2)
+            phi1 = cgm.Factor([X, Y])
+            cpd = cgm.CPD(Y, [X])
+            phi2 = phi1.marginalize_cpd(cpd)
+            print(phi2)
+            # ϕ(X)
+        """
+        summand_var: CG_Node = cpd.child  # This variable will be eliminated
+        assert set(self.scope) == set(cpd.scope)
+        prod: 'Factor[CG_Node]' = self * cpd
+        summand = prod.marginalize([summand_var])
+        return summand
 
     def argmax(self, variable: V):
         """ 
@@ -414,16 +440,16 @@ class CPD(Factor[CG_Node]):
                    parents=list(unspecified_parents),
                    values=cond_values)
 
-    def marginalize_cpd(self, parent_cpd: 'CPD') -> 'CPD':
+    def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
         """Marginalize out a distribution over a parent variable.
 
         Sum over all possible states of a set of parent variables, weighted
         by how probable the parent is.
         """
-        summand_var = parent_cpd.child  # This variable will be eliminated
-        assert parent_cpd.child in self.parents
-        assert set(self.parents) == set(parent_cpd.scope)
-        prod: Factor[CG_Node] = self * parent_cpd
+        summand_var = cpd.child  # This variable will be eliminated
+        assert cpd.child in self.parents
+        assert set(self.parents) == set(cpd.scope)
+        prod: Factor[CG_Node] = self * cpd
         summand = prod.marginalize([summand_var])
         new_parents = [v for v in summand.scope if v != self.child]
         return CPD(child=self.child, parents=new_parents, values=summand.values)

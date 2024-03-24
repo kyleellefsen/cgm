@@ -293,3 +293,31 @@ def test_marginalize_cpd_3vars():
     for b_idx in range(num_states_b):
         summand += values_a[:, b_idx, :] * values_bc[b_idx, :]
     npt.assert_allclose(marginalized_cpd.values, summand)
+
+def test_marginalize_cpd():
+    num_states_x = 2
+    num_states_y = 3
+    x = cgm.CG_Node('X', num_states_x)
+    y = cgm.CG_Node('Y', num_states_y)
+    phi1 = cgm.Factor([x, y], np.ones((num_states_x, num_states_y)))
+    cpd = cgm.CPD(y, [x], np.ones((num_states_y, num_states_x)))
+    
+    result = phi1.marginalize_cpd(cpd)
+    
+    assert result.scope == [x]
+    assert result.values.shape == (num_states_x,)
+    assert np.allclose(result.values, np.ones((num_states_x,)))
+
+def test_marginalize_cpd_two_parents():
+    num_states_x = 2
+    num_states_y = 3
+    num_states_z = 4
+    x = cgm.CG_Node('X', num_states_x)
+    y = cgm.CG_Node('Y', num_states_y)
+    z = cgm.CG_Node('Z', num_states_z)
+    phi1 = cgm.Factor([x, y, z], np.ones((num_states_x, num_states_y, num_states_z)))
+    cpd = cgm.CPD(y, [x, z], np.ones((num_states_y, num_states_x, num_states_z)))
+    result = phi1.marginalize_cpd(cpd)
+    assert set(result.scope) == set([x, z])
+    assert result.values.shape == (num_states_x, num_states_z)
+    assert np.allclose(result.values, np.ones((num_states_x, num_states_z)))
