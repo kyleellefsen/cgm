@@ -49,7 +49,7 @@ myst_enable_extensions = [
 # Autodoc2 settings
 autodoc2_packages = [
     {
-        "path": "../src/cgm",
+        "path": "../cgm",
         "auto_mode": False,
         "exclude_dirs": [],
         "exclude_files": ["example_graphs.py"],

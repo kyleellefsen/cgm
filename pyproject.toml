@@ -44,7 +44,7 @@ PyPi = "https://pypi.org/project/cgm/"
 Issues = "https://github.com/kyleellefsen/cgm/issues"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 
 [tool.setuptools.package-data]
 cgm = ["py.typed"]
@@ -52,7 +52,7 @@ cgm = ["py.typed"]
 [tool.pytest.ini_options]
 addopts = [ "--import-mode=importlib",]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["."]
 
 [tool.mypy]
 exclude = '''(?x)(
