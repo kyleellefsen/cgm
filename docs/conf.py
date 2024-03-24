@@ -3,7 +3,7 @@ import sys
 import pathlib
 import sphinx_rtd_theme
 
-cgm_path = pathlib.Path('../src').resolve()
+cgm_path = pathlib.Path('../').resolve()
 assert cgm_path.exists(), f"Path does not exist: {cgm_path}"
 sys.path.insert(0, str(cgm_path))
 
