@@ -383,3 +383,20 @@ def test_permute_scope_3d():
     npt.assert_allclose(new_factor.values, np.array([[[0, 4]],
                                                      [[1, 5]],
                                                      [[2, 6]]]))
+
+# def test_set_scope_cpd():
+#     num_states_a = 2
+#     num_states_b = 3
+#     a = cgm.CG_Node('a', num_states_a)
+#     b = cgm.CG_Node('b', num_states_b)
+#     c = cgm.CG_Node('c', num_states_a)
+#     d = cgm.CG_Node('d', num_states_b)
+#     values = np.array([[0, .6, .9],
+#                        [1, .4, .1]])
+#     phi1 = cgm.CPD(a, [b], values)
+#     new_scope = [c, d]
+#     phi2 = phi1.set_scope(new_scope)
+#     assert isinstance(phi2, cgm.CPD)
+#     assert phi2.child == c
+#     assert phi2.parents == [d]
+#     npt.assert_allclose(phi2.values, values)

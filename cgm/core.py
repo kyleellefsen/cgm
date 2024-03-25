@@ -389,13 +389,14 @@ class CPD(Factor[CG_Node]):
                  child: CG_Node,
                  parents: Sequence[CG_Node] | None = None,
                  values: np.ndarray | None = None):
-        self._child = child
         if parents is None:
             parents = []
         self._parents = parents
         scope: list[CG_Node] = [child] + list(parents)
         super().__init__(scope, values)
-        self.child = child
+        self._child = child
+        self._assert_nocycles()
+        child.cpd = self
         self._normalize()
 
     @property
@@ -403,18 +404,12 @@ class CPD(Factor[CG_Node]):
         """Return the child node of the CPD."""
         return self._child
 
-    @child.setter
-    def child(self, child: CG_Node):
-        self._child = child
-        self._nocycles()
-        child.cpd = self
-
     @property
     def parents(self) -> Sequence[CG_Node]:
         """Return the parents of the CPD."""
         return self._parents
 
-    def _nocycles(self):
+    def _assert_nocycles(self):
         child = self.child
         parents = set(self.scope) - set([child])
         if len(parents) == 0:
@@ -432,7 +427,6 @@ class CPD(Factor[CG_Node]):
     def normalize(self):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
-
 
     def sample(self,
                num_samples: int,
@@ -483,6 +477,25 @@ class CPD(Factor[CG_Node]):
         summand = prod.marginalize([summand_var])
         new_parents = [v for v in summand.scope if v != self.child]
         return CPD(child=self.child, parents=new_parents, values=summand.values)
+
+    def set_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
+        """Set the scope of the factor to the specified scope.
+        
+        The new child must be the first element of the scope.
+        
+        TODO: Implement this method after permute_scope() is implemented.
+        """
+        raise NotImplementedError("Cannot set the scope of a CPD.")
+
+    def permute_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
+        """Set the scope of the factor according to the specified permutation.
+        
+        Must be a permutation of the original scope.
+        
+        TODO: Implement this method. Permuting the child might be a breaking
+        change, since some code might expect the child to be the first element.
+        """
+        raise NotImplementedError("Cannot set the scope of a CPD.")
 
     def __repr__(self):
         rep = "ϕ(" + str(self.child)
