@@ -95,7 +95,7 @@ def test_CPD_2nodes():
     b = cgm.CG_Node('b', num_states_b)
     phi1 = cgm.CPD(a, [b])
     assert phi1.child == a
-    assert phi1.parents == [b]
+    assert phi1.parents == {b}
     assert a.parents == {b}
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
@@ -111,7 +111,7 @@ def test_CPD_3nodes():
     c = cgm.CG_Node('c', num_states_c)
     phi1 = cgm.CPD(a, [b, c])
     assert phi1.child == a
-    assert phi1.parents == [b, c]
+    assert phi1.parents == {b, c}
     assert a.parents == {b, c}
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
@@ -135,7 +135,7 @@ def test_CPD_condition():
     parent_states = {b: selected_b_index}
     phi1_cond = phi1.condition(parent_states)
     assert phi1_cond.child == a
-    assert phi1_cond.parents == [c]
+    assert phi1_cond.parents == {c}
     assert phi1_cond.values.shape == (num_states_a, num_states_c)
     expected_values = np.array([values_a1[selected_b_index, :],
                                 1 - values_a1[selected_b_index, :]])
@@ -256,7 +256,7 @@ def test_factor_argmax():
     assert result.values.shape == (num_states_a,)
     assert np.allclose(result.values, np.array([2, 2]))
 
-def test_marginalize_cpd_2vars():
+def test_cpd_marginalize_2vars():
     num_states_a = 2
     num_states_b = 3
     a = cgm.CG_Node('a', num_states_a)
@@ -270,7 +270,7 @@ def test_marginalize_cpd_2vars():
     expected_values = values_a @ values_b
     npt.assert_allclose(marginalized_cpd.values, expected_values)
 
-def test_marginalize_cpd_3vars():
+def test_cpd_marginalize_3vars():
     num_states_a = 2
     num_states_b = 3
     num_states_c = 4
@@ -290,7 +290,7 @@ def test_marginalize_cpd_3vars():
     marginalized_cpd = phi1.marginalize_cpd(phi2)
 
     assert marginalized_cpd.child == a
-    assert marginalized_cpd.parents == [c]
+    assert marginalized_cpd.parents == {c}
     assert marginalized_cpd.values.shape == (num_states_a, num_states_c)
 
     summand = np.zeros((num_states_a, num_states_c))
@@ -298,7 +298,7 @@ def test_marginalize_cpd_3vars():
         summand += values_a[:, b_idx, :] * values_bc[b_idx, :]
     npt.assert_allclose(marginalized_cpd.values, summand)
 
-def test_marginalize_cpd():
+def test_cpd_marginalize():
     num_states_x = 2
     num_states_y = 3
     x = cgm.CG_Node('X', num_states_x)
@@ -310,7 +310,7 @@ def test_marginalize_cpd():
     assert result.values.shape == (num_states_x,)
     assert np.allclose(result.values, np.ones((num_states_x,)))
 
-def test_marginalize_cpd_two_parents():
+def test_cpd_marginalize_two_parents():
     num_states_x = 2
     num_states_y = 3
     num_states_z = 4
@@ -324,7 +324,7 @@ def test_marginalize_cpd_two_parents():
     assert result.values.shape == (num_states_x, num_states_z)
     assert np.allclose(result.values, np.ones((num_states_x, num_states_z)))   
 
-def test_permute_scope_2d():
+def test_factor_permute_scope_2d():
     num_states_a = 2
     num_states_b = 3
     a = cgm.Variable('a', num_states_a)
@@ -339,8 +339,7 @@ def test_permute_scope_2d():
     npt.assert_allclose(new_factor.values, np.array([[0, 3],
                                                      [1, 4],
                                                      [2, 5]]))
-
-def test_permute_scope_is_copy():
+def test_factor_permute_scope_is_copy():
     num_states_a = 2
     num_states_b = 3
     a = cgm.Variable('a', num_states_a)
@@ -352,7 +351,7 @@ def test_permute_scope_is_copy():
     phi1.values[0, 0] = 1
     npt.assert_allclose(phi2.values, np.zeros((num_states_b, num_states_a)))
  
-def test_set_scope_is_copy():
+def test_factor_set_scope_is_copy():
     num_states_a = 2
     num_states_b = 3
     a = cgm.Variable('a', num_states_a)
@@ -366,7 +365,7 @@ def test_set_scope_is_copy():
     phi1.values[0, 0] = 1
     npt.assert_allclose(phi2.values, np.zeros((num_states_a, num_states_b)))
 
-def test_permute_scope_3d():
+def test_factor_permute_scope_3d():
     num_states_a = 1
     num_states_b = 2
     num_states_c = 3
@@ -383,20 +382,47 @@ def test_permute_scope_3d():
     npt.assert_allclose(new_factor.values, np.array([[[0, 4]],
                                                      [[1, 5]],
                                                      [[2, 6]]]))
+def test_cpd_permute_scope():
+    num_states_a = 2
+    num_states_b = 3
+    num_states_c = 4
+    a = cgm.CG_Node('a', num_states_a)
+    b = cgm.CG_Node('b', num_states_b)
+    c = cgm.CG_Node('c', num_states_c)
+    values_a1 = np.array([[.3, .8, .2, .7],
+                          [.7, .2, .8, .1],
+                          [.1, .5, .3, .9]])
+    values = np.array([values_a1, 1 - values_a1])
+    cpd = cgm.CPD(a, [b, c], values)
 
-# def test_set_scope_cpd():
-#     num_states_a = 2
-#     num_states_b = 3
-#     a = cgm.CG_Node('a', num_states_a)
-#     b = cgm.CG_Node('b', num_states_b)
-#     c = cgm.CG_Node('c', num_states_a)
-#     d = cgm.CG_Node('d', num_states_b)
-#     values = np.array([[0, .6, .9],
-#                        [1, .4, .1]])
-#     phi1 = cgm.CPD(a, [b], values)
-#     new_scope = [c, d]
-#     phi2 = phi1.set_scope(new_scope)
-#     assert isinstance(phi2, cgm.CPD)
-#     assert phi2.child == c
-#     assert phi2.parents == [d]
-#     npt.assert_allclose(phi2.values, values)
+    new_scope = [c, a, b]
+    permuted_cpd = cpd.permute_scope(new_scope)
+    assert isinstance(permuted_cpd, cgm.CPD)
+
+    assert permuted_cpd.scope == new_scope
+    assert permuted_cpd.child == a
+    assert permuted_cpd.parents == {c, b}
+    assert np.array_equal(permuted_cpd.values, 
+                          np.moveaxis(values, [0, 1, 2], [1, 2, 0]))
+
+    # Test assertion error when new_scope is not a permutation of the original scope
+    with pytest.raises(AssertionError):
+        invalid_scope = [a, b]
+        cpd.permute_scope(invalid_scope)
+
+def test_cpd_set_scope():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.CG_Node('a', num_states_a)
+    b = cgm.CG_Node('b', num_states_b)
+    c = cgm.CG_Node('c', num_states_a)
+    d = cgm.CG_Node('d', num_states_b)
+    values = np.array([[0, .6, .9],
+                       [1, .4, .1]])
+    phi1 = cgm.CPD(a, [b], values)
+    new_scope = [c, d]
+    phi2 = phi1.set_scope(new_scope)
+    assert isinstance(phi2, cgm.CPD)
+    assert phi2.child == c
+    assert phi2.parents == {d}
+    npt.assert_allclose(phi2.values, values)

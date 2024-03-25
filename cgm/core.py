@@ -387,12 +387,29 @@ class CPD(Factor[CG_Node]):
 
     def __init__(self,
                  child: CG_Node,
-                 parents: Sequence[CG_Node] | None = None,
-                 values: np.ndarray | None = None):
+                 parents: set[CG_Node] | None = None,
+                 values: np.ndarray | None = None,
+                 scope: Sequence[CG_Node] | None = None):
+        """Create a conditional probability distribution.
+        
+        Args:
+            child: The child node of the CPD.
+            parents: The parent nodes of the CPD. If None, the CPD has no 
+              parents; this is an unconditional probability distribution.
+            values: The values of the CPD. If None, random values will be
+              generated.
+            scope: The scope of the CPD. If None, the scope is 
+              [child] + parents. The scope must contain the child and parent
+              nodes and no others. The scope sets the order of the dimensions
+              in the underlying array.
+        """
         if parents is None:
-            parents = []
-        self._parents = parents
-        scope: list[CG_Node] = [child] + list(parents)
+            parents = set()
+        self._parents = set(parents)
+        if scope is None:
+            scope = [child] + list(parents)
+        else:
+            assert set(scope) == set(parents) | {child}
         super().__init__(scope, values)
         self._child = child
         self._assert_nocycles()
@@ -405,7 +422,7 @@ class CPD(Factor[CG_Node]):
         return self._child
 
     @property
-    def parents(self) -> Sequence[CG_Node]:
+    def parents(self) -> set[CG_Node]:
         """Return the parents of the CPD."""
         return self._parents
 
@@ -461,7 +478,7 @@ class CPD(Factor[CG_Node]):
         index_tuple = tuple(index)
         cond_values = self.values[index_tuple]
         return CPD(child=self.child,
-                   parents=list(unspecified_parents),
+                   parents=unspecified_parents,
                    values=cond_values)
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
@@ -475,27 +492,29 @@ class CPD(Factor[CG_Node]):
         assert set(self.parents) == set(cpd.scope)
         prod: Factor[CG_Node] = self * cpd
         summand = prod.marginalize([summand_var])
-        new_parents = [v for v in summand.scope if v != self.child]
+        new_parents = set(v for v in summand.scope if v != self.child)
         return CPD(child=self.child, parents=new_parents, values=summand.values)
 
     def set_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
-        """Set the scope of the factor to the specified scope.
-        
-        The new child must be the first element of the scope.
-        
-        TODO: Implement this method after permute_scope() is implemented.
-        """
-        raise NotImplementedError("Cannot set the scope of a CPD.")
+        """Set the scope of the factor to the specified scope."""
+        child_idx = self.scope.index(self.child)
+        parent_idxs = [self.scope.index(p) for p in self.parents]
+        new_child = new_scope[child_idx]
+        new_parents = {new_scope[idx] for idx in parent_idxs}
+        return CPD(new_child, new_parents, self.values.copy(), new_scope)
 
     def permute_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
         """Set the scope of the factor according to the specified permutation.
         
         Must be a permutation of the original scope.
-        
-        TODO: Implement this method. Permuting the child might be a breaking
-        change, since some code might expect the child to be the first element.
         """
-        raise NotImplementedError("Cannot set the scope of a CPD.")
+        assert set(new_scope) == set(self.scope)
+        dst_map = {value: idx for idx, value in enumerate(new_scope)}
+        dst = [dst_map[element] for element in self.scope]
+        new_vals = np.moveaxis(self.values,
+                               source=range(len(self.scope)),
+                               destination=dst)
+        return CPD(self.child, self.parents, new_vals.copy(), new_scope)
 
     def __repr__(self):
         rep = "ϕ(" + str(self.child)
