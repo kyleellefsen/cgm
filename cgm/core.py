@@ -96,7 +96,7 @@ class CG_Node(DAG_Node['CG_Node']):
     def __init__(self, name: str, num_states: int):
         super().__init__(name, num_states)
         # by default the cpd has no parents; the node is unconnected
-        self.cpd = CPD(self)
+        self.cpd = CPD([self])
 
     @property
     def cpd(self) -> 'CPD':
@@ -388,32 +388,29 @@ class CPD(Factor[CG_Node]):
     """
 
     def __init__(self,
-                 child: CG_Node,
-                 parents: set[CG_Node] | None = None,
+                 scope: Sequence[CG_Node],
                  values: np.ndarray | None = None,
-                 scope: Sequence[CG_Node] | None = None):
+                 child: CG_Node | None = None,
+                 rng: np.random.Generator | None = None):
         """Create a conditional probability distribution.
         
         Args:
-            child: The child node of the CPD.
-            parents: The parent nodes of the CPD. If None, the CPD has no 
-              parents; this is an unconditional probability distribution.
+            scope: The scope of the CPD. The scope sets the order of the
+              dimensions in the underlying array.
             values: The values of the CPD. If None, random values will be
               generated.
-            scope: The scope of the CPD. If None, the scope is 
-              [child] + parents. The scope must contain the child and parent
-              nodes and no others. The scope sets the order of the dimensions
-              in the underlying array.
+            child: The child node of the CPD. If child is None, the first
+              variable in the scope is assumed to be the child.
+            rng: A numpy random number generator used to set the values.
+              Only used if values is None.
+              
         """
-        if parents is None:
-            parents = set()
-        self._parents = set(parents)
-        if scope is None:
-            scope = [child] + list(parents)
-        else:
-            assert set(scope) == set(parents) | {child}
-        super().__init__(scope, values)
+        self._scope = scope
+        super().__init__(scope, values, rng)
+        if child is None:
+            child = scope[0]
         self._child = child
+        self._parents = set(scope) - set([child])
         self._assert_nocycles()
         child.cpd = self
         self._normalize()
@@ -469,9 +466,9 @@ class CPD(Factor[CG_Node]):
         """
 
         specified_parents = set(condition_dict.keys())
-        unspecified_parents = set(self.parents) - specified_parents
         assert specified_parents.issubset(set(self.parents))
         index: list[int | slice] = []
+        new_scope = [v for v in self.scope if v not in specified_parents]
         for var in self.scope:
             if var in specified_parents:
                 index.append(condition_dict[var])
@@ -479,9 +476,7 @@ class CPD(Factor[CG_Node]):
                 index.append(slice(None))
         index_tuple = tuple(index)
         cond_values = self.values[index_tuple]
-        return CPD(child=self.child,
-                   parents=unspecified_parents,
-                   values=cond_values)
+        return CPD(scope=new_scope, values=cond_values, child=self.child)
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
         """Marginalize out a distribution over a parent variable.
@@ -494,16 +489,14 @@ class CPD(Factor[CG_Node]):
         assert set(self.parents) == set(cpd.scope)
         prod: Factor[CG_Node] = self * cpd
         summand = prod.marginalize([summand_var])
-        new_parents = set(v for v in summand.scope if v != self.child)
-        return CPD(child=self.child, parents=new_parents, values=summand.values)
+        new_scope = [v for v in self.scope if v != summand_var]
+        return CPD(scope=new_scope, values=summand.values, child=self.child)
 
     def set_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
         """Set the scope of the factor to the specified scope."""
         child_idx = self.scope.index(self.child)
-        parent_idxs = [self.scope.index(p) for p in self.parents]
         new_child = new_scope[child_idx]
-        new_parents = {new_scope[idx] for idx in parent_idxs}
-        return CPD(new_child, new_parents, self.values.copy(), new_scope)
+        return CPD(scope=new_scope, child=new_child, values=self.values.copy())
 
     def permute_scope(self, new_scope: Sequence[CG_Node]) -> 'CPD':
         """Set the scope of the factor according to the specified permutation.
@@ -516,10 +509,10 @@ class CPD(Factor[CG_Node]):
         new_vals = np.moveaxis(self.values,
                                source=range(len(self.scope)),
                                destination=dst)
-        return CPD(self.child, self.parents, new_vals.copy(), new_scope)
+        return CPD(scope=new_scope, values=new_vals.copy(), child=self.child)
 
     def __repr__(self):
-        rep = "ϕ(" + str(self.child)
+        rep = "𝐏(" + str(self.child)
         if len(self.parents) > 0:
             rep += " | " + ", ".join([f"{s}" for s in self.parents])
         rep += ")"
@@ -536,7 +529,7 @@ class DAG(Generic[D]):
         s = ''
         for n in self.nodes:
             parents = sorted(list(n.parents))
-            s += f"{n} <- {parents}\n"
+            s += f"{n} ← {parents}\n"
         return s
 
 @_utils.set_module('cgm')
@@ -548,3 +541,6 @@ class CG(DAG[CG_Node]):
 
     def __init__(self, nodes: list[CG_Node]):
         super().__init__(nodes)
+
+
+del _utils

@@ -11,11 +11,11 @@ def get_cg1():
     E = cgm.CG_Node('E', 3)
     F = cgm.CG_Node('F', 3)
     # Specify all parents of nodes
-    cgm.CPD(B, [A])
-    cgm.CPD(C, [A])
-    cgm.CPD(D, [B, C])
-    cgm.CPD(F, [C])
-    cgm.CPD(E, [D])
+    cgm.CPD([B, A])
+    cgm.CPD([C, A])
+    cgm.CPD([D, B, C])
+    cgm.CPD([C, F])
+    cgm.CPD([D, E])
     graph = cgm.CG([A, B, C, D, E, F])
     return graph
 
@@ -29,9 +29,9 @@ def get_cg2():
     slippery  = cgm.CG_Node('slippery', 2)
 
     # Specify all parents of nodes
-    cgm.CPD(season, [], np.array([.25, .25, .25, .25]))
-    cgm.CPD(rain, [season])
-    cgm.CPD(wet, [rain, sprinkler])
-    cgm.CPD(slippery, [wet])
+    cgm.CPD([season], np.array([.25, .25, .25, .25]))
+    cgm.CPD([rain, season])
+    cgm.CPD([wet, rain, sprinkler])
+    cgm.CPD([slippery, wet])
     graph = cgm.CG([season, rain, sprinkler, wet, slippery])
     return graph

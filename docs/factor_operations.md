@@ -98,8 +98,8 @@ import cgm
 X = cgm.CG_Node('X', num_states=2)
 Y = cgm.CG_Node('Y', num_states=3)
 Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD(X, [Y, Z])
-phi_2 = cgm.CPD(Y, [Z])
+phi_1 = cgm.CPD([X, Y, Z])
+phi_2 = cgm.CPD([Y, Z])
 phi_3 = phi_1 * phi_2
 print(phi_3)
 # ϕ(X, Y, Z)
@@ -134,7 +134,7 @@ Z = cgm.Variable('Z', num_states=4)
 phi_1 = cgm.Factor(scope=[X, Y, Z])
 phi_2 = phi_1.condition({X: 0, Y: 1})
 print(phi_2)
-ϕ(Z)
+# ϕ(Z)
 ```
 
 ## CPD Conditioning
@@ -149,12 +149,12 @@ import cgm
 X = cgm.CG_Node('X', num_states=2)
 Y = cgm.CG_Node('Y', num_states=3)
 Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD(X, [Y, Z])
+phi_1 = cgm.CPD([X, Y, Z])
 phi_2 = phi_1.condition({Y: 0, Z: 1})
 print(phi_2)
-# ϕ(X)
+# 𝐏(X)
 print(type(phi_2))  # The result is a CPD
-# <class 'cgm.core.CPD'>
+# <class 'cgm.CPD'>
 ```
 
 ````
@@ -203,7 +203,7 @@ import cgm
 X = cgm.CG_Node('X', 2)
 Y = cgm.CG_Node('Y', 2)
 phi1 = cgm.Factor([X, Y])
-cpd = cgm.CPD(Y, [X])
+cpd = cgm.CPD([Y, X])
 phi2 = phi1.marginalize_cpd(cpd)
 print(phi2)
 # ϕ(X)
@@ -242,11 +242,11 @@ import cgm
 X = cgm.CG_Node('X', num_states=2)
 Y = cgm.CG_Node('Y', num_states=3)
 Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD(X, [Y, Z])
-phi_2 = cgm.CPD(Y, [Z])
+phi_1 = cgm.CPD([X, Y, Z])
+phi_2 = cgm.CPD([Y, Z])
 phi_3 = phi_1.marginalize_cpd(phi_2)
 print(phi_3)
-# ϕ(X | Z)
+# 𝐏(X | Z)
 ```
 
 ````

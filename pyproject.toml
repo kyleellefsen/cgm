@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cgm"
-version = "0.0.10-alpha"
+version = "0.0.10-alpha2"
 dependencies = [
     "numpy",
 ]
