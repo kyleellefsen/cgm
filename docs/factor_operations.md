@@ -1,4 +1,4 @@
-# Factor Operations
+# Factors
 
 ## Factor Overview
 
@@ -54,13 +54,13 @@ flowchart TB
     click cgm.CG_Node "core.html#cgm.core.CG_Node" _blank
 ```
 
-# Operations
+## Factor Operations
 `````{tabs}
 ````{group-tab} Multiplication
 
-## Multiplication
+### Multiplication
 
-### Factor Multiplication
+#### Factor Multiplication
 The factor product is defined in Probabilistic Graphical Models
 Definition 4.2 (Koller 2009). That definition is quoted below.
 
@@ -88,7 +88,7 @@ print(psi)
 # ϕ(X, Y, Z)
 ```
 
-### CPD Multiplication
+#### CPD Multiplication
 
 CPD multiplication current works in exactly the same way as factor multiplcation.
 
@@ -160,9 +160,9 @@ print(type(phi_2))  # The result is a CPD
 ````
 ````{group-tab} Marginalization
 
-### Marginalization
+#### Marginalization
 
-### Factor Marginalization
+#### Factor Marginalization
 The marginalization of a factor over its variable eliminates that variable 
 from the factor by summing over all its possible states. {py:mod}`cgm`'s 
 factor.marginalize() function allows simultaneous marginalization over 
@@ -209,7 +209,7 @@ print(phi2)
 # ϕ(X)
 ```
 
-### CPD Marginalization
+#### CPD Marginalization
 
 It's common to want to marginalize over a parent variable in a conditional 
 probability distribution.

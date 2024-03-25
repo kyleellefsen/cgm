@@ -1,7 +1,7 @@
 # Usage
 
 ```{toctree}
-:maxdepth: 4
+:maxdepth: 1
 getting_started.md
 factor_operations.md
 ```
