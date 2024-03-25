@@ -196,6 +196,21 @@ class Factor(Generic[V]):
         """Return the scope of the factor."""
         return self._scope
 
+    def permute_scope(self, new_scope: Sequence[V]) -> 'Factor':
+        """Set the scope of the factor according to the specified permutation.
+        
+        Must be a permutation of the original scope."""
+        assert set(new_scope) == set(self.scope)
+        dst = [new_scope.index(s) for s in self.scope]
+        new_vals = np.moveaxis(self.values,
+                               source=range(len(new_scope)),
+                               destination=dst)
+        return Factor(new_scope, new_vals.copy())
+
+    def set_scope(self, new_scope: Sequence[V]) -> 'Factor':
+        """Set the scope of the factor to the specified scope."""
+        return Factor(new_scope, self.values.copy())
+
     def _check_input(self):
         # all variable names have to be unique
         var_counts = collections.Counter([el.name for el in self.scope])
@@ -216,7 +231,7 @@ class Factor(Generic[V]):
     def _get_random_values(self, rng: np.random.Generator):
         num_dimensions = tuple(s.num_states for s in self.scope)
         return rng.uniform(size=num_dimensions)
-    
+
     def _normalize_dimensions(self, other: 'Factor') -> tuple[np.ndarray, np.ndarray, list[V]]:
         """Expand and permute the dimensions of the two factors to match.
         
