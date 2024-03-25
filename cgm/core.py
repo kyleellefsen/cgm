@@ -512,8 +512,9 @@ class CPD(Factor[CG_Node]):
 
     def __repr__(self):
         rep = "𝑃(" + str(self.child)
-        if len(self.parents) > 0:
-            rep += " | " + ", ".join([f"{s}" for s in self.parents])
+        parents = tuple(p for p in self.scope if p != self.child)
+        if len(parents) > 0:
+            rep += " | " + ", ".join([f"{s}" for s in parents])
         rep += ")"
         return rep
 

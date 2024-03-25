@@ -384,7 +384,7 @@ def test_factor_permute_scope_is_copy():
     phi2 = phi1.permute_scope(new_scope)
     phi1.values[0, 0] = 1
     npt.assert_allclose(phi2.values, np.zeros((num_states_b, num_states_a)))
- 
+
 def test_factor_set_scope_is_copy():
     num_states_a = 2
     num_states_b = 3
