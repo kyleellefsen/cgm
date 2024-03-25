@@ -6,10 +6,12 @@ from typing import List, Sequence, TypeVar, Generic
 import functools
 import collections
 import numpy as np
+from . import _utils
+
 V = TypeVar('V', bound='Variable')  # V can be Variable or Variable's subclass
 D = TypeVar('D', bound='DAG_Node')
 
-
+@_utils.set_module('cgm')
 class Variable:
     """A variable has a name and can taken on a finite number of states. 
     """
@@ -34,7 +36,7 @@ class Variable:
     def __lt__(self, other):
         return self.name < other.name
 
-
+@_utils.set_module('cgm')
 class DAG_Node(Variable, Generic[D]):
     """A DAG (Directed Acyclic Graph) node is a variable in a DAG. 
     A node can have multiple parents and multiple children, but no cycles can be
@@ -69,7 +71,7 @@ class DAG_Node(Variable, Generic[D]):
             parents_remaining = parents_remaining - ancestors_acc
         return ancestors_acc
 
-
+@_utils.set_module('cgm')
 class CG_Node(DAG_Node['CG_Node']):
     """A Causal Graph Node
 
@@ -107,7 +109,7 @@ class CG_Node(DAG_Node['CG_Node']):
         self._cpd = cpd
         self.parents = set(self.cpd.scope) - set([self])
 
-
+@_utils.set_module('cgm')
 class ScopeShapeMismatchError(Exception):
     """Exception raised when the shape of a factor's scope does not match 
     the shape of its stored values array."""
@@ -117,7 +119,7 @@ class ScopeShapeMismatchError(Exception):
                    "stored values array."
         super().__init__(message)
 
-
+@_utils.set_module('cgm')
 class NonUniqueVariableNamesError(Exception):
     """Exception raised when the variables in a factor's scope do not have unique names."""
     def __init__(self, non_unique_names):
@@ -126,7 +128,7 @@ class NonUniqueVariableNamesError(Exception):
                    "unique names."
         super().__init__(message)
 
-
+@_utils.set_module('cgm')
 class Factor(Generic[V]):
     """A factor is a function that has a list of variables in its scope, and 
     maps every combination of variable values to a real number. In this 
@@ -364,7 +366,7 @@ class Factor(Generic[V]):
         cond_values = self.values[index_tuple]
         return Factor(list(new_scope), cond_values)
 
-
+@_utils.set_module('cgm')
 class CPD(Factor[CG_Node]):
     """Conditional Probability Distribution
 
@@ -523,7 +525,7 @@ class CPD(Factor[CG_Node]):
         rep += ")"
         return rep
 
-
+@_utils.set_module('cgm')
 class DAG(Generic[D]):
     """Directed Acyclic Graph"""
 
@@ -537,7 +539,7 @@ class DAG(Generic[D]):
             s += f"{n} <- {parents}\n"
         return s
 
-
+@_utils.set_module('cgm')
 class CG(DAG[CG_Node]):
     """Causal Graph
     Contains a list of CG_Nodes. The information about connectivity is stored 
