@@ -172,6 +172,25 @@ def test_factor_multiplication():
     assert result.scope == [a, b]
     assert result.values.shape == (num_states_a, num_states_b)
 
+def test_factor_arithmetic():
+    num_states_a = 2
+    num_states_b = 3
+    ones = np.ones((num_states_a, num_states_b))
+    a = cgm.Variable('a', num_states_a)
+    b = cgm.Variable('b', num_states_b)
+    phi1 = cgm.Factor[cgm.Variable]([a, b], ones)
+    phi2 = cgm.Factor[cgm.Variable]([b, a], 2 * np.ones((num_states_b, num_states_a)))
+    npt.assert_allclose((phi1 * phi2).values, 2 * ones)
+    npt.assert_allclose((phi1 / phi2).values, (1/2) * ones)
+    npt.assert_allclose((phi1 + phi2).values, 3 * ones)
+    npt.assert_allclose((phi1 - phi2).values, -1 * ones)
+    npt.assert_allclose((5 * phi1).values, 5 * ones)
+    npt.assert_allclose((phi1 * 5).values, 5 * ones)
+    npt.assert_allclose((3 + phi1).values, 4 * ones)
+    npt.assert_allclose((phi1 + 3).values, 4 * ones)
+    npt.assert_allclose((phi1 / 5).values, (1/5) * ones)
+    npt.assert_allclose((phi1 - 5).values, (-4) * ones)
+
 def test_factor_multiplication_with_different_scopes():
     num_states_a = 2
     num_states_b = 3

@@ -186,6 +186,10 @@ class Factor(Generic[V]):
         """Return the values of the factor."""
         return self._values
 
+    def values(self, values: np.ndarray) -> 'Factor':
+        """Returns a new factor with the same scope but specified values."""
+        return Factor(self.scope, values)
+
     @property
     def shape(self) -> tuple[int, ...]:
         """Return the shape of the factor's values array."""
@@ -195,13 +199,6 @@ class Factor(Generic[V]):
     def scope(self) -> Sequence[V]:
         """Return the scope of the factor."""
         return self._scope
-
-    def set_values(self, new_values: np.ndarray):
-        """Set the values of the factor to new_values."""
-        # the dimension of the factor cannot be changed using this method
-        assert self._values.shape == new_values.shape
-        self._values = new_values
-        self._check_input()
 
     def _check_input(self):
         # all variable names have to be unique
@@ -223,9 +220,13 @@ class Factor(Generic[V]):
     def _get_random_values(self, rng: np.random.Generator):
         num_dimensions = tuple(s.num_states for s in self.scope)
         return rng.uniform(size=num_dimensions)
-
-    def __mul__(self, other: 'Factor') -> 'Factor':
-        """Factor product as defined in PGM Definition 4.2 (Koller 2009)."""
+    
+    def _normalize_dimensions(self, other: 'Factor') -> tuple[np.ndarray, np.ndarray, list[V]]:
+        """Expand and permute the dimensions of the two factors to match.
+        
+        This is required for factor multiplication, division, addition, 
+        and subtraction.
+        """
         scope1 = self.scope
         scope2 = other.scope
         scope_2_but_not_1 = [sc for sc in scope2 if sc not in scope1]
@@ -236,7 +237,32 @@ class Factor(Generic[V]):
         destination_mapping = {value: index for index, value in enumerate(result_scope)}
         arr2_dst = [destination_mapping[element] for element in scope2_padded]
         arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
+        return arr1, arr2, result_scope
+
+    def __mul__(self, other: 'Factor | int | float') -> 'Factor':
+        """Factor product as defined in PGM Definition 4.2 (Koller 2009)."""
+        if isinstance(other, (int, float)):
+            return Factor(self.scope, np.multiply(self.values, other))
+        arr1, arr2, result_scope = self._normalize_dimensions(other)
         return Factor(result_scope, np.multiply(arr1, arr2))
+
+    def __rmul__(self, other: int | float) -> 'Factor':
+        return Factor(self.scope, np.multiply(self.values, other))
+
+    def __add__(self, other: 'Factor | int | float') -> 'Factor':
+        if isinstance(other, (int, float)):
+            return Factor(self.scope, np.add(self.values, other))
+        arr1, arr2, result_scope = self._normalize_dimensions(other)
+        return Factor(result_scope, np.add(arr1, arr2))
+
+    def __radd__(self, other: int | float) -> 'Factor':
+        return Factor(self.scope, np.add(self.values, other))
+
+    def __sub__(self, other: 'Factor | int | float') -> 'Factor':
+        if isinstance(other, (int, float)):
+            return Factor(self.scope, np.subtract(self.values, other))
+        arr1, arr2, result_scope = self._normalize_dimensions(other)
+        return Factor(result_scope, np.subtract(arr1, arr2))
 
     def __truediv__(self, other: 'Factor') -> 'Factor':
         scope1 = self.scope
@@ -268,10 +294,6 @@ class Factor(Generic[V]):
 
         Sum over all possible states of a set of the cpd variables, weighted
         by how probable the c is.
-
-        $$
-            \phi_{\text{new}}(X) \gets \sum_{y \in Y} \phi_{1}(X, Y) P(Y|X)
-        $$
 
         Example:
 
@@ -400,9 +422,6 @@ class CPD(Factor[CG_Node]):
         msg = "CPD has no method 'normalize', since it is already normalized."
         raise AttributeError(msg)
 
-    def set_values(self, new_values: np.ndarray):
-        super().set_values(new_values)
-        self._normalize()
 
     def sample(self,
                num_samples: int,
