@@ -167,7 +167,7 @@ class Factor(Generic[V]):
                  scope: Sequence[V],
                  values: np.ndarray | int | float | None = None,
                  rng: np.random.Generator | None = None):
-        self._scope = scope
+        self._scope: tuple[V, ...] = tuple(scope)
         if values is None:
             if rng is None:
                 rng = np.random.default_rng()
@@ -181,7 +181,7 @@ class Factor(Generic[V]):
     @classmethod
     def get_null(cls):
         """Return a factor with no scope and a single value of 1.0."""
-        return cls[V](scope=[], values=np.float64(1))
+        return cls[V](scope=tuple(), values=np.float64(1))
 
     @property
     def values(self) -> np.ndarray:
@@ -194,7 +194,7 @@ class Factor(Generic[V]):
         return tuple(s.num_states for s in self.scope)
 
     @property
-    def scope(self) -> Sequence[V]:
+    def scope(self) -> tuple[V, ...]:
         """Return the scope of the factor."""
         return self._scope
 
@@ -234,7 +234,7 @@ class Factor(Generic[V]):
         num_dimensions = tuple(s.num_states for s in self.scope)
         return rng.uniform(size=num_dimensions)
 
-    def _normalize_dimensions(self, other: 'Factor') -> tuple[np.ndarray, np.ndarray, list[V]]:
+    def _normalize_dimensions(self, other: 'Factor') -> tuple[np.ndarray, np.ndarray, tuple[V, ...]]:
         """Expand and permute the dimensions of the two factors to match.
         
         This is required for factor multiplication, division, addition, 
@@ -242,8 +242,8 @@ class Factor(Generic[V]):
         """
         scope1 = self.scope
         scope2 = other.scope
-        scope_2_but_not_1 = [sc for sc in scope2 if sc not in scope1]
-        result_scope = list(scope1) + scope_2_but_not_1
+        scope_2_but_not_1 = tuple(sc for sc in scope2 if sc not in scope1)
+        result_scope = scope1 + scope_2_but_not_1
         scope2_padded = list(scope2) + [sc for sc in scope1 if sc not in scope2]
         arr1 = np.expand_dims(self.values, axis=tuple(range(len(scope1), len(result_scope))))
         arr2 = np.expand_dims(other.values, axis=tuple(range(len(scope2), len(result_scope))))
@@ -284,7 +284,7 @@ class Factor(Generic[V]):
         scope2 = other.scope
         # The scope of the denominator must be a subset of that of the numerator
         assert set(scope1).intersection(scope2) == set(scope2)
-        result_scope = list(scope1)
+        result_scope = scope1
         scope2_padded = list(scope2) + [sc for sc in scope1 if sc not in scope2]
         arr1 = self.values
         arr2 = np.expand_dims(other.values, axis=tuple(range(len(scope2), len(result_scope))))
@@ -405,12 +405,11 @@ class CPD(Factor[CG_Node]):
               Only used if values is None.
               
         """
-        self._scope = scope
         super().__init__(scope, values, rng)
         if child is None:
             child = scope[0]
         self._child = child
-        self._parents = set(scope) - set([child])
+        self._parents: frozenset = frozenset(set(scope) - set([child]))
         self._assert_nocycles()
         child.cpd = self
         self._normalize()
@@ -421,7 +420,7 @@ class CPD(Factor[CG_Node]):
         return self._child
 
     @property
-    def parents(self) -> set[CG_Node]:
+    def parents(self) -> frozenset[CG_Node]:
         """Return the parents of the CPD."""
         return self._parents
 

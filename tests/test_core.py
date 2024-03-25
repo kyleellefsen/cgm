@@ -18,7 +18,7 @@ def test_factor():
     b = cgm.Variable('b', num_states_b)
     phi1 = cgm.Factor[cgm.Variable]([a, b], 
                                     np.ones((num_states_a, num_states_b)))
-    assert phi1.scope == [a, b]
+    assert phi1.scope == (a, b)
     assert phi1.values.shape == (num_states_a, num_states_b)
     margin = phi1.marginalize([a]).values
     npt.assert_allclose(margin, num_states_a * np.ones((num_states_b,)))
@@ -44,6 +44,40 @@ def test_cpd_creation_with_integer_value():
     expected_values = np.full((num_a_states, 3, 3), 1 / num_a_states)
     np.testing.assert_array_equal(factor.values, expected_values)
 
+def test_factor_property_immutability():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.Variable('a', num_states_a)
+    b = cgm.Variable('b', num_states_b)
+    phi1 = cgm.Factor[cgm.Variable]([a, b], 
+                                    np.ones((num_states_a, num_states_b)))
+    with pytest.raises(AttributeError):
+        phi1.scope = [b, a]
+    with pytest.raises(AttributeError):
+        phi1.scope.pop()
+    with pytest.raises(AttributeError):
+        phi1.shape = (9, 8)
+    
+
+def test_cpd_property_immutability():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.CG_Node('a', num_states_a)
+    b = cgm.CG_Node('b', num_states_b)
+    values = np.array([[.11, .22, .33],
+                       [.89, .78, .67]])
+    phi1 = cgm.CPD([a, b], values=values)
+    with pytest.raises(AttributeError):
+        phi1.child = b
+    with pytest.raises(AttributeError):
+        phi1.parents = {b}
+    with pytest.raises(AttributeError):
+        phi1.values = np.zeros((num_states_a, num_states_b))
+    with pytest.raises(AttributeError):
+        phi1.parents.pop()
+    with pytest.raises(AttributeError):
+        phi1.scope.pop()
+
 def test_factor_unsorted_scope():
     num_states_a = 2
     num_states_b = 3
@@ -51,7 +85,7 @@ def test_factor_unsorted_scope():
     b = cgm.Variable('b', num_states_b)
     phi1 = cgm.Factor[cgm.Variable]([b, a],
                                     np.ones((num_states_b, num_states_a)))
-    assert phi1.scope == [b, a]
+    assert phi1.scope == (b, a)
     assert phi1.values.shape == (num_states_b, num_states_a)
     margin = phi1.marginalize([a]).values
     npt.assert_allclose(margin, num_states_a * np.ones((num_states_b,)))
@@ -99,7 +133,7 @@ def test_CPD_2nodes():
     assert a.parents == {b}
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
-    assert phi1.scope == [a, b]
+    assert phi1.scope == (a, b)
     assert phi1.values.shape == (num_states_a, num_states_b)
 
 def test_CPD_3nodes():
@@ -115,7 +149,7 @@ def test_CPD_3nodes():
     assert a.parents == {b, c}
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
-    assert phi1.scope == [a, b, c]
+    assert phi1.scope == (a, b, c)
     assert phi1.values.shape == (num_states_a, num_states_b, num_states_c)
 
 def test_CPD_condition():
@@ -153,7 +187,7 @@ def test_factor_condition():
                                                             num_states_c)))
     selected_b_index = 1
     phi1_cond = phi1.condition({b: selected_b_index})
-    assert phi1_cond.scope == [a, c]
+    assert phi1_cond.scope == (a, c)
     assert phi1_cond.values.shape == (num_states_a, num_states_c)
     npt.assert_allclose(phi1_cond.values, 5 * np.ones((num_states_a, 
                                                        num_states_c)))
@@ -166,7 +200,7 @@ def test_factor_multiplication():
     phi1 = cgm.Factor[cgm.Variable]([a, b], np.ones((num_states_a, num_states_b)))
     phi2 = cgm.Factor[cgm.Variable]([b, a], np.ones((num_states_b, num_states_a)))
     result = phi1 * phi2
-    assert result.scope == [a, b]
+    assert result.scope == (a, b)
     assert result.values.shape == (num_states_a, num_states_b)
 
 def test_factor_arithmetic():
@@ -198,7 +232,7 @@ def test_factor_multiplication_with_different_scopes():
     phi1 = cgm.Factor[cgm.Variable]([a, b], np.ones((num_states_a, num_states_b)))
     phi2 = cgm.Factor[cgm.Variable]([b, c], np.ones((num_states_b, num_states_c)))
     result = phi1 * phi2
-    assert result.scope == [a, b, c]
+    assert result.scope == (a, b, c)
     assert result.values.shape == (num_states_a, num_states_b, num_states_c)
     assert np.allclose(result.values, np.ones((num_states_a, num_states_b, num_states_c)))
 
@@ -210,7 +244,7 @@ def test_factor_multiplication_with_nonintersection_scope():
     phi1 = cgm.Factor[cgm.Variable]([a], np.ones((num_states_a,)))
     phi2 = cgm.Factor[cgm.Variable]([b], np.ones((num_states_b,)))
     result = phi1 * phi2
-    assert result.scope == [a, b]
+    assert result.scope == (a, b)
     assert result.values.shape == (num_states_a, num_states_b)
     assert np.allclose(result.values, np.ones((num_states_a, num_states_b)))
 
@@ -221,7 +255,7 @@ def test_factor_division_by_scalar():
     b = cgm.Variable('b', num_states_b)
     phi = cgm.Factor[cgm.Variable]([a, b], np.ones((num_states_a, num_states_b)))
     result = phi / 2
-    assert result.scope == [a, b]
+    assert result.scope == (a, b)
     assert result.values.shape == (num_states_a, num_states_b)
     assert np.allclose(result.values, np.divide(np.ones((num_states_a, num_states_b)), 2))
 
@@ -235,7 +269,7 @@ def test_factor_division_by_factor():
     phi1 = cgm.Factor[cgm.Variable]([a, b, c], np.ones((num_states_a, num_states_b, num_states_c)))
     phi2 = cgm.Factor[cgm.Variable]([b, c], np.ones((num_states_b, num_states_c)))
     result = phi1 / phi2
-    assert result.scope == [a, b, c]
+    assert result.scope == (a, b, c)
     assert result.values.shape == (num_states_a, num_states_b, num_states_c)
     assert np.allclose(result.values,
                        np.divide(np.ones((num_states_a, num_states_b, num_states_c)),
@@ -248,11 +282,11 @@ def test_factor_argmax():
     b = cgm.Variable('b', num_states_b)
     phi = cgm.Factor[cgm.Variable]([a, b], np.array([[1, 2, 3], [4, 5, 6]]))
     result = phi.argmax(a)
-    assert result.scope == [b]
+    assert result.scope == (b,)
     assert result.values.shape == (num_states_b,)
     assert np.allclose(result.values, np.array([1, 1, 1]))
     result = phi.argmax(b)
-    assert result.scope == [a]
+    assert result.scope == (a,)
     assert result.values.shape == (num_states_a,)
     assert np.allclose(result.values, np.array([2, 2]))
 
@@ -306,7 +340,7 @@ def test_cpd_marginalize():
     phi1 = cgm.Factor([x, y], np.ones((num_states_x, num_states_y)))
     cpd = cgm.CPD([y, x], np.ones((num_states_y, num_states_x)))
     result = phi1.marginalize_cpd(cpd)
-    assert result.scope == [x]
+    assert result.scope == (x,)
     assert result.values.shape == (num_states_x,)
     assert np.allclose(result.values, np.ones((num_states_x,)))
 
@@ -332,7 +366,7 @@ def test_factor_permute_scope_2d():
     values = np.array([[0, 1, 2],
                        [3, 4, 5]])
     factor = cgm.Factor([a, b], values)
-    new_scope = [b, a]
+    new_scope = (b, a)
     new_factor = factor.permute_scope(new_scope)
     assert new_factor.scope == new_scope
     assert new_factor.values.shape == (num_states_b, num_states_a)
@@ -346,7 +380,7 @@ def test_factor_permute_scope_is_copy():
     b = cgm.Variable('b', num_states_b)
     values = np.zeros((num_states_a, num_states_b))
     phi1 = cgm.Factor([a, b], values)
-    new_scope = [b, a]
+    new_scope = (b, a)
     phi2 = phi1.permute_scope(new_scope)
     phi1.values[0, 0] = 1
     npt.assert_allclose(phi2.values, np.zeros((num_states_b, num_states_a)))
@@ -360,7 +394,7 @@ def test_factor_set_scope_is_copy():
     d = cgm.Variable('d', num_states_b)
     values = np.zeros((num_states_a, num_states_b))
     phi1 = cgm.Factor([a, b], values)
-    new_scope = [c, d]
+    new_scope = (c, d)
     phi2 = phi1.set_scope(new_scope)
     phi1.values[0, 0] = 1
     npt.assert_allclose(phi2.values, np.zeros((num_states_a, num_states_b)))
@@ -375,7 +409,7 @@ def test_factor_permute_scope_3d():
     values = np.array([[[0, 1, 2],
                         [4, 5, 6]]])
     factor = cgm.Factor([a, b, c], values)
-    new_scope = [c, a, b]
+    new_scope = (c, a, b)
     new_factor = factor.permute_scope(new_scope)
     assert new_factor.scope == new_scope
     assert new_factor.values.shape == (num_states_c, num_states_a, num_states_b)
@@ -395,7 +429,7 @@ def test_cpd_permute_scope():
     values = np.array([values_a1, 1 - values_a1])
     cpd = cgm.CPD([a, b, c], values)
 
-    new_scope = [c, a, b]
+    new_scope = (c, a, b)
     permuted_cpd = cpd.permute_scope(new_scope)
     assert isinstance(permuted_cpd, cgm.CPD)
 
