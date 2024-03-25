@@ -186,10 +186,6 @@ class Factor(Generic[V]):
         """Return the values of the factor."""
         return self._values
 
-    def values(self, values: np.ndarray) -> 'Factor':
-        """Returns a new factor with the same scope but specified values."""
-        return Factor(self.scope, values)
-
     @property
     def shape(self) -> tuple[int, ...]:
         """Return the shape of the factor's values array."""
