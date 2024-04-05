@@ -275,6 +275,21 @@ def test_factor_division_by_factor():
                        np.divide(np.ones((num_states_a, num_states_b, num_states_c)),
                                  np.ones((num_states_b, num_states_c))))
 
+def test_factor_max():
+    num_states_a = 2
+    num_states_b = 3
+    a = cgm.Variable('a', num_states_a)
+    b = cgm.Variable('b', num_states_b)
+    phi = cgm.Factor[cgm.Variable]([a, b], np.array([[1, 2, 10], [4, 5, 6]]))
+    result = phi.max(a)
+    assert result.scope == (b,)
+    assert result.values.shape == (num_states_b,)
+    assert np.allclose(result.values, np.array([4, 5, 10]))
+    result = phi.max(b)
+    assert result.scope == (a,)
+    assert result.values.shape == (num_states_a,)
+    assert np.allclose(result.values, np.array([10, 6]))
+
 def test_factor_argmax():
     num_states_a = 2
     num_states_b = 3

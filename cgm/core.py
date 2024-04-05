@@ -324,10 +324,21 @@ class Factor(Generic[V]):
         summand = prod.marginalize([summand_var])
         return summand
 
+    def max(self, variable: V):
+        """ 
+        Returns the maximum along the  the state of the variables that maximizes 
+        the factor. 
+        example: phi3.max(A) 
+        """
+        axis = self.scope.index(variable)
+        reduced_scope = [s for s in self.scope if s != variable]
+        max_indices = np.max(self._values, axis=axis)
+        return Factor[V](reduced_scope, max_indices)
+
     def argmax(self, variable: V):
         """ 
         Find the state of the variables that maximizes the factor
-        example: phi3.argmax([A, B]) 
+        example: phi3.argmax(A) 
         """
         axis = self.scope.index(variable)
         reduced_scope = [s for s in self.scope if s != variable]
