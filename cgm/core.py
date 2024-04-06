@@ -345,6 +345,10 @@ class Factor(Generic[V]):
         max_indices = np.argmax(self._values, axis=axis)
         return Factor[V](reduced_scope, max_indices)
 
+    def abs(self):
+        """Returns the absolute value of the factor."""
+        return Factor[V](self.scope, np.abs(self.values))
+
     def normalize(self):
         """Returns a factor with the same distribution whose sum is 1"""
         return Factor(self.scope, (self / self.marginalize(self.scope)).values)

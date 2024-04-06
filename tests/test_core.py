@@ -16,7 +16,7 @@ def test_factor():
     num_states_b = 3
     a = cgm.Variable('a', num_states_a)
     b = cgm.Variable('b', num_states_b)
-    phi1 = cgm.Factor[cgm.Variable]([a, b], 
+    phi1 = cgm.Factor[cgm.Variable]([a, b],
                                     np.ones((num_states_a, num_states_b)))
     assert phi1.scope == (a, b)
     assert phi1.values.shape == (num_states_a, num_states_b)
