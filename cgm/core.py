@@ -26,15 +26,28 @@ class Variable:
         return self.name < other.name
 
 @_utils.set_module('cgm')
-class DAG_Node(Variable, Generic[D]):
+class DAG_Node(Generic[D]):
     """A DAG (Directed Acyclic Graph) node is a variable in a DAG. 
     A node can have multiple parents and multiple children, but no cycles can be
     created.
     """
 
-    def __init__(self, name: str, num_states: int):
-        super().__init__(name, num_states)
+    def __init__(self, variable: Variable):
+        self.variable = variable
         self._parents: set[D] = set()
+
+    @property
+    def name(self) -> str:
+        """Return the name of the variable."""
+        return self.variable.name
+
+    @property
+    def num_states(self) -> int:
+        """Return the number of states the variable can take on."""
+        return self.variable.num_states
+
+    def __lt__(self, other) -> bool:
+        return self.variable.__lt__(other.variable)
 
     @property
     def parents(self) -> set[D]:
@@ -72,9 +85,9 @@ class CG_Node(DAG_Node['CG_Node']):
 
     Example:
 
-        A = cgm.CG_Node('A', 2)
-        B = cgm.CG_Node('B', 2)
-        C = cgm.CG_Node('C', 2)
+        A = cgm.cgm.CG_Node.from_params('A', 2)
+        B = cgm.cgm.CG_Node.from_params('B', 2)
+        C = cgm.cgm.CG_Node.from_params('C', 2)
         phi1 = cgm.CPD(A, [B])
         phi2 = cgm.CPD(B, [C])
         phi3 = cgm.CPD(C, [])
@@ -82,10 +95,14 @@ class CG_Node(DAG_Node['CG_Node']):
 
     """
 
-    def __init__(self, name: str, num_states: int):
-        super().__init__(name, num_states)
+    def __init__(self, variable: Variable):
+        super().__init__(variable)
         # by default the cpd has no parents; the node is unconnected
         self.cpd = CPD([self])
+
+    @classmethod
+    def from_params(cls, name: str, num_states: int) -> 'DAG_Node':
+        return cls(Variable(name, num_states))
 
     @property
     def cpd(self) -> 'CPD':
@@ -299,8 +316,8 @@ class Factor(Generic[V]):
 
         Example:
 
-            X = cgm.CG_Node('X', 2)
-            Y = cgm.CG_Node('Y', 2)
+            X = cgm.cgm.CG_Node.from_params('X', 2)
+            Y = cgm.cgm.CG_Node.from_params('Y', 2)
             phi1 = cgm.Factor([X, Y])
             cpd = cgm.CPD(Y, [X])
             phi2 = phi1.marginalize_cpd(cpd)
@@ -381,9 +398,9 @@ class CPD(Factor[CG_Node]):
 
     Example:
     ```
-      A = cgm.CG_Node('A', 2)
-      B = cgm.CG_Node('B', 2)
-      C = cgm.CG_Node('C', 2)
+      A = cgm.cgm.CG_Node.from_params('A', 2)
+      B = cgm.cgm.CG_Node.from_params('B', 2)
+      C = cgm.cgm.CG_Node.from_params('C', 2)
       phi1 = cgm.CPD(A, [B])
       phi2 = cgm.CPD(B, [C])
       phi3 = cgm.CPD(C, [])
