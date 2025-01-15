@@ -1,7 +1,8 @@
 """
 Inside the main directory, run with:
-`python -m pytest tests/core_tests.py`
+`python -m pytest tests/test_core.py`
 """
+# pylint: disable=missing-function-docstring,invalid-name
 import pytest
 import numpy as np
 import numpy.testing as npt
@@ -49,7 +50,7 @@ def test_factor_property_immutability():
     num_states_b = 3
     a = cgm.Variable('a', num_states_a)
     b = cgm.Variable('b', num_states_b)
-    phi1 = cgm.Factor[cgm.Variable]([a, b], 
+    phi1 = cgm.Factor[cgm.Variable]([a, b],
                                     np.ones((num_states_a, num_states_b)))
     with pytest.raises(AttributeError):
         phi1.scope = [b, a]
@@ -57,7 +58,7 @@ def test_factor_property_immutability():
         phi1.scope.pop()
     with pytest.raises(AttributeError):
         phi1.shape = (9, 8)
-    
+
 
 def test_cpd_property_immutability():
     num_states_a = 2
@@ -191,7 +192,7 @@ def test_factor_condition():
     assert phi1_cond.values.shape == (num_states_a, num_states_c)
     npt.assert_allclose(phi1_cond.values, 5 * np.ones((num_states_a, 
                                                        num_states_c)))
-    
+
 def test_factor_multiplication():
     num_states_a = 2
     num_states_b = 3

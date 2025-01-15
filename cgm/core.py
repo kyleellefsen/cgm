@@ -5,6 +5,7 @@ The core module contains the basic building blocks of a Causal Graphical Model.
 from typing import List, Sequence, TypeVar, Generic
 import functools
 import collections
+import dataclasses
 import numpy as np
 from . import _utils
 
@@ -12,28 +13,16 @@ V = TypeVar('V', bound='Variable')  # V can be Variable or Variable's subclass
 D = TypeVar('D', bound='DAG_Node')
 
 @_utils.set_module('cgm')
+@dataclasses.dataclass(frozen=True)
 class Variable:
-    """A variable has a name and can taken on a finite number of states. 
-    """
+    """A variable has a name and can taken on a finite number of states."""
+    name: str  # The name of the variable
+    num_states: int  # The number of states the variable can take on
 
-    def __init__(self, name: str, num_states: int):
-        self._name = name
-        self._num_states = num_states
-
-    @property
-    def name(self) -> str:
-        """Return the name of the variable."""
-        return self._name
-
-    @property
-    def num_states(self) -> int:
-        """Return the number of states of the variable."""
-        return self._num_states
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.name
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         return self.name < other.name
 
 @_utils.set_module('cgm')
@@ -300,7 +289,7 @@ class Factor(Generic[V]):
         """
         axes = tuple(np.where([s in variables for s in self.scope])[0])
         reduced_scope = [s for s in self.scope if s not in variables]
-        return Factor(reduced_scope, np.sum(self._values, axis=axes))
+        return Factor(reduced_scope, np.sum(self.values, axis=axes))
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'Factor':
         """Marginalize out a conditional probability distribution.
@@ -324,7 +313,7 @@ class Factor(Generic[V]):
         summand = prod.marginalize([summand_var])
         return summand
 
-    def max(self, variable: V):
+    def max(self, variable: V) -> 'Factor':
         """ 
         Returns the maximum along the  the state of the variables that maximizes 
         the factor. 
@@ -332,28 +321,28 @@ class Factor(Generic[V]):
         """
         axis = self.scope.index(variable)
         reduced_scope = [s for s in self.scope if s != variable]
-        max_indices = np.max(self._values, axis=axis)
+        max_indices = np.max(self.values, axis=axis)
         return Factor[V](reduced_scope, max_indices)
 
-    def argmax(self, variable: V):
+    def argmax(self, variable: V) -> 'Factor':
         """ 
         Find the state of the variables that maximizes the factor
         example: phi3.argmax(A) 
         """
         axis = self.scope.index(variable)
         reduced_scope = [s for s in self.scope if s != variable]
-        max_indices = np.argmax(self._values, axis=axis)
+        max_indices = np.argmax(self.values, axis=axis)
         return Factor[V](reduced_scope, max_indices)
 
-    def abs(self):
+    def abs(self) -> 'Factor':
         """Returns the absolute value of the factor."""
         return Factor[V](self.scope, np.abs(self.values))
 
-    def normalize(self):
-        """Returns a factor with the same distribution whose sum is 1"""
-        return Factor(self.scope, (self / self.marginalize(self.scope)).values)
+    def normalize(self) -> 'Factor':
+        """Returns a new factor with the same distribution whose sum is 1."""
+        return Factor(self.scope, (self / self.marginalize(list(self.scope))).values)
 
-    def increment_at_index(self, index: tuple[int, ...], amount):
+    def increment_at_index(self, index: tuple[int, ...], amount) -> None:
         """Increment the value of the factor at a particular index by amount."""
         self._values[index] += amount
 

@@ -1,7 +1,8 @@
 """
-Inside 'tests' director, run with:
-`python -m unittest inference_tests`
+Inside the main directory, run with:
+`python -m pytest tests/test_inference.py`
 """
+# pylint: disable=missing-function-docstring,invalid-name,too-many-locals,logging-fstring-interpolation,f-string-without-interpolation
 import logging
 import numpy as np
 import numpy.testing as npt
@@ -16,8 +17,8 @@ def test_elimination1():
     dve = cgm.inference.variable_elimination.DagVariableElimination(cg)
     factors = dve.variable_elimination(elimination_order)
     npt.assert_almost_equal(factors[0].values, 1, decimal=5)
-    
-    
+
+
 def test_elimination2():
     logging.debug(f"Running test_elimination2()")
     cg = cgm.example_graphs.get_cg2()
