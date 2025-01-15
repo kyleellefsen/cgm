@@ -2,22 +2,55 @@
 """
 The core module contains the basic building blocks of a Causal Graphical Model.
 """
-from typing import List, Sequence, TypeVar, Generic
+from typing import List, Sequence, TypeVar, Generic, Protocol, FrozenSet
 import functools
 import collections
 import dataclasses
 import numpy as np
 from . import _utils
 
-V = TypeVar('V', bound='Variable')  # V can be Variable or Variable's subclass
-D = TypeVar('D', bound='DAG_Node')
+DCovariant = TypeVar('DCovariant', bound='ComparableHasParents', covariant=True)
+D = TypeVar('D', bound='ComparableHasParents')
+
+class HasComparison(Protocol):
+    def __lt__(self: 'HasComparison', other: 'HasComparison') -> bool: ...
+
+class HasParents(Protocol[DCovariant]):
+    @property
+    def parents(self) -> FrozenSet[DCovariant]: ...
+    @property 
+    def ancestors(self) -> FrozenSet[DCovariant]: ...
+
+class ComparableHasParents(HasParents[DCovariant], HasComparison, Protocol):
+    pass
+
+class HasVariable(Protocol):
+    @property
+    def name(self) -> str: ...
+    @property
+    def num_states(self) -> int: ...
+    def __lt__(self, other) -> bool: ...
+
+V = TypeVar('V', bound='HasVariable')
 
 @_utils.set_module('cgm')
 @dataclasses.dataclass(frozen=True)
-class Variable:
+class Variable(HasVariable):
     """A variable has a name and can taken on a finite number of states."""
-    name: str  # The name of the variable
-    num_states: int  # The number of states the variable can take on
+    _name: str  # The name of the variable
+    _num_states: int  # The number of states the variable can take on
+
+    def __init__(self, name: str, num_states: int):
+        object.__setattr__(self, '_name', name)
+        object.__setattr__(self, '_num_states', num_states)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def num_states(self) -> int:
+        return self._num_states
 
     def __repr__(self) -> str:
         return self.name
@@ -26,15 +59,32 @@ class Variable:
         return self.name < other.name
 
 @_utils.set_module('cgm')
-class DAG_Node(Generic[D]):
+@dataclasses.dataclass(frozen=True)
+class DAG_Node(HasParents[D], HasVariable, Generic[D]):
     """A DAG (Directed Acyclic Graph) node is a variable in a DAG. 
     A node can have multiple parents and multiple children, but no cycles can be
     created.
     """
+    variable: Variable
+    _parents: frozenset[D] = dataclasses.field(default_factory=frozenset)
+    _ancestors: frozenset[D] = dataclasses.field(init=False)
 
-    def __init__(self, variable: Variable):
-        self.variable = variable
-        self._parents: set[D] = set()
+    def __init__(self, variable: Variable, _parents: frozenset[D] = frozenset()):
+        # Create new variable instance
+        new_variable = Variable(name=variable.name, num_states=variable.num_states)
+        object.__setattr__(self, 'variable', new_variable)
+        object.__setattr__(self, '_parents', _parents)
+        
+        # Compute ancestors
+        parents_remaining = _parents.copy()
+        ancestors_acc = set()
+        while parents_remaining:
+            node = next(iter(parents_remaining))
+            parents_remaining = parents_remaining - {node}
+            ancestors_acc.add(node)
+            ancestors_acc.update(node.ancestors)
+            parents_remaining = parents_remaining - ancestors_acc
+        object.__setattr__(self, '_ancestors', frozenset(ancestors_acc))
 
     @property
     def name(self) -> str:
@@ -50,31 +100,15 @@ class DAG_Node(Generic[D]):
         return self.variable.__lt__(other.variable)
 
     @property
-    def parents(self) -> set[D]:
-        """Return a set of all the parents of this node."""
+    def parents(self) -> frozenset[D]:  # Now matches protocol with concrete type D
         return self._parents
 
-    @parents.setter
-    def parents(self, parents: set[D]):
-        """Set the parents of this node."""
-        self._parents = parents
-        if hasattr(self, 'ancestors'):
-            del self.ancestors  # clear the cached property
-
-    @functools.cached_property
-    def ancestors(self) -> set[D]:
-        """Return a set of all the ancestors of this node"""
-        parents_remaining = self.parents.copy()
-        ancestors_acc = set()
-        while len(parents_remaining) > 0:
-            node = parents_remaining.pop()
-            ancestors_acc.add(node)
-            ancestors_acc.update(node.ancestors)
-            parents_remaining = parents_remaining - ancestors_acc
-        return ancestors_acc
+    @property
+    def ancestors(self) -> frozenset[D]:  # Now matches protocol with concrete type D
+        return self._ancestors
 
 @_utils.set_module('cgm')
-class CG_Node(DAG_Node['CG_Node']):
+class CG_Node(HasParents, HasVariable):
     """A Causal Graph Node
 
     A CG_Node is a variable in a Bayesian Network. 
@@ -96,24 +130,60 @@ class CG_Node(DAG_Node['CG_Node']):
     """
 
     def __init__(self, variable: Variable):
-        super().__init__(variable)
-        # by default the cpd has no parents; the node is unconnected
-        self.cpd = CPD([self])
+        # Create new DAG_Node with new Variable instance
+        self._dag_node = DAG_Node[CG_Node](variable=variable)
+        # Create default CPD
+        self._cpd = CPD([self])
 
     @classmethod
-    def from_params(cls, name: str, num_states: int) -> 'DAG_Node':
-        return cls(Variable(name, num_states))
+    def from_params(cls, name: str, num_states: int) -> 'CG_Node':
+        variable = Variable(name=name, num_states=num_states)
+        # Create new CG_Node which will internally create a new DAG_Node with this variable
+        return cls(variable)
+
+    @property
+    def variable(self) -> Variable:
+        return self._dag_node.variable
+        
+    @property
+    def name(self) -> str:
+        return self._dag_node.name
+        
+    @property
+    def num_states(self) -> int:
+        return self._dag_node.num_states
+        
+    def __lt__(self, other) -> bool:
+        return self._dag_node.__lt__(other._dag_node)
+
+    @property
+    def parents(self) -> frozenset[HasParents]:  # Updated return type
+        return self._dag_node.parents
+        
+    @parents.setter
+    def parents(self, parents: set['CG_Node']):
+        # Create new DAG_Node with updated parents
+        self._dag_node = DAG_Node(
+            variable=self._dag_node.variable,
+            _parents=frozenset(parents)
+        )
+
+    @property
+    def ancestors(self) -> frozenset[HasParents]:  # Updated return type
+        return self._dag_node.ancestors
 
     @property
     def cpd(self) -> 'CPD':
-        """Return the conditional probability distribution for this node."""
         return self._cpd
 
     @cpd.setter
     def cpd(self, cpd: 'CPD'):
-        """Set the conditional probability distribution for this node."""
         self._cpd = cpd
-        self.parents = set(self.cpd.scope) - set([self])
+        new_parents = frozenset(set(cpd.scope) - {self})
+        self._dag_node = DAG_Node[CG_Node](
+            variable=self._dag_node.variable,
+            _parents=new_parents
+        )
 
 @_utils.set_module('cgm')
 class ScopeShapeMismatchError(Exception):
@@ -299,7 +369,7 @@ class Factor(Generic[V]):
         arr2 = np.moveaxis(arr2, source=range(len(result_scope)), destination=arr2_dst)
         return Factor(result_scope, np.divide(arr1, arr2))
 
-    def marginalize(self, variables: List[Variable]) -> 'Factor':
+    def marginalize(self, variables: List[V]) -> 'Factor[V]':
         """ 
         Sum over all possible states of a list of variables
         example: phi3.marginalize([A, B]) 
@@ -447,10 +517,10 @@ class CPD(Factor[CG_Node]):
 
     def _assert_nocycles(self):
         child = self.child
-        parents = set(self.scope) - set([child])
+        parents = set(self.scope) - {child}
         if len(parents) == 0:
             return
-        ancestors = set.union(*[p.ancestors for p in parents])
+        ancestors = set().union(*(set(p.ancestors) for p in parents))
         assert child not in ancestors
 
     def _normalize(self):
