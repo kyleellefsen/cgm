@@ -479,7 +479,13 @@ class CPD(Factor[CG_Node]):
                 index.append(slice(None))
         index_tuple = tuple(index)
         cond_values = self.values[index_tuple]
-        return CPD(scope=new_scope, values=cond_values, child=self.child)
+        # Store original CPD
+        original_cpd = self.child.cpd
+        # Create new conditioned CPD
+        result = CPD(scope=new_scope, values=cond_values, child=self.child)
+        # Restore original CPD
+        self.child.cpd = original_cpd
+        return result
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
         """Marginalize out a distribution over a parent variable.

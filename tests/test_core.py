@@ -476,3 +476,13 @@ def test_cpd_set_scope():
     assert phi2.child == c
     assert phi2.parents == {d}
     npt.assert_allclose(phi2.values, values)
+
+def test_cpd_condition_mutability():
+    """Ensures conditioning doesn't change the parents of any node."""
+    cg = cgm.example_graphs.get_cg2()
+    rain, season, slippery, sprinkler, wet = cg.nodes
+    parent_list_before = [n.parents for n in cg.nodes]
+    rain.cpd.condition({season: 0})
+    parent_list_after = [n.parents for n in cg.nodes]
+    for before, after in zip(parent_list_before, parent_list_after):
+        assert before == after

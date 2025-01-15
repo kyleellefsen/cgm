@@ -144,3 +144,19 @@ def test_forward_sample():
                         expected_season,
                         rtol=.2)
     logging.debug(f'Season count: {marginal.normalize().values}')
+
+
+def test_forward_sample_no_mutation():
+    logging.debug('Testing test_forward_sample_no_mutation()')
+    cg = cgm.example_graphs.get_cg2()
+    rain, season, slippery, sprinkler, wet = cg.nodes
+    parent_list_before = [n.parents for n in cg.nodes]
+    sampler = cgm.inference.forward_sampling.ForwardSampler(cg, 30)
+    num_samples = 10
+    samples = sampler.get_n_samples(num_samples)
+    parent_list_after = [n.parents for n in cg.nodes]
+    for before, after in zip(parent_list_before, parent_list_after):
+        assert before == after
+
+
+
