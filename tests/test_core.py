@@ -486,3 +486,48 @@ def test_cpd_condition_mutability():
     parent_list_after = [n.parents for n in cg.nodes]
     for before, after in zip(parent_list_before, parent_list_after):
         assert before == after
+
+
+def test_variable_equality():
+    """Test that Variable equality works correctly"""
+    v1 = cgm.Variable('a', 2)
+    v2 = cgm.Variable('a', 2)
+    v3 = cgm.Variable('a', 3)
+    v4 = cgm.Variable('b', 2)
+    
+    assert v1 == v2  # Same name and states
+    assert v1 != v3  # Same name, different states
+    assert v1 != v4  # Different name
+    assert len({v1, v2}) == 1  # Test hash equality
+    assert len({v1, v3}) == 2  # Test hash inequality
+
+def test_cg_node_equality():
+    """Test that CG_Node equality works correctly"""
+    a1 = cgm.CG_Node.from_params('a', 2)
+    a2 = cgm.CG_Node.from_params('a', 2)
+    b = cgm.CG_Node.from_params('b', 2)
+    
+    assert a1 == a2  # Same name, states, no parents
+    assert a1 != b   # Different name
+    assert len({a1, a2}) == 1  # Test hash equality
+    
+    # Create CPD to add parent relationship
+    phi = cgm.CPD([a1, b])
+    a3 = phi.child  # New node with b as parent
+    
+    assert a1 != a3  # Same name but different parents
+    assert len({a1, a3}) == 2  # Test hash inequality
+
+def test_dag_node_equality():
+    """Test that DAG_Node equality works correctly"""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 2)
+    
+    d1 = cgm.DAG_Node[cgm.CG_Node](variable=a)
+    d2 = cgm.DAG_Node[cgm.CG_Node](variable=a)
+    d3 = cgm.DAG_Node[cgm.CG_Node](variable=b)
+    
+    assert d1 == d2  # Same variable, no parents
+    assert d1 != d3  # Different variable
+    assert len({d1, d2}) == 1  # Test hash equality
+    assert len({d1, d3}) == 2  # Test hash inequality

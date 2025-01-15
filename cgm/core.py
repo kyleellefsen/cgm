@@ -3,7 +3,6 @@
 The core module contains the basic building blocks of a Causal Graphical Model.
 """
 from typing import List, Sequence, TypeVar, Generic, Protocol, FrozenSet
-import functools
 import collections
 import dataclasses
 import numpy as np
@@ -58,6 +57,14 @@ class Variable(HasVariable):
     def __lt__(self, other) -> bool:
         return self.name < other.name
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Variable):
+            return NotImplemented
+        return (self.name == other.name and self.num_states == other.num_states)
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.num_states))
+
 @_utils.set_module('cgm')
 @dataclasses.dataclass(frozen=True)
 class DAG_Node(HasParents[D], HasVariable, Generic[D]):
@@ -74,7 +81,7 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
         new_variable = Variable(name=variable.name, num_states=variable.num_states)
         object.__setattr__(self, 'variable', new_variable)
         object.__setattr__(self, '_parents', _parents)
-        
+
         # Compute ancestors
         parents_remaining = _parents.copy()
         ancestors_acc = set()
@@ -91,6 +98,9 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
         """Return the name of the variable."""
         return self.variable.name
 
+    def __repr__(self) -> str:
+        return f"{self.name}"
+
     @property
     def num_states(self) -> int:
         """Return the number of states the variable can take on."""
@@ -98,6 +108,14 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
 
     def __lt__(self, other) -> bool:
         return self.variable.__lt__(other.variable)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, DAG_Node):
+            return NotImplemented
+        return (self.variable == other.variable and self.parents == other.parents)
+
+    def __hash__(self) -> int:
+        return hash((self.variable, frozenset(self.parents)))
 
     @property
     def parents(self) -> frozenset[D]:  # Now matches protocol with concrete type D
@@ -108,6 +126,7 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
         return self._ancestors
 
 @_utils.set_module('cgm')
+@dataclasses.dataclass(frozen=True)
 class CG_Node(HasParents, HasVariable):
     """A Causal Graph Node
 
@@ -128,62 +147,57 @@ class CG_Node(HasParents, HasVariable):
 
 
     """
-
-    def __init__(self, variable: Variable):
-        # Create new DAG_Node with new Variable instance
-        self._dag_node = DAG_Node[CG_Node](variable=variable)
-        # Create default CPD
-        self._cpd = CPD([self])
+    variable: Variable
+    dag_node: DAG_Node['CG_Node']
+    cpd: 'CPD'
 
     @classmethod
     def from_params(cls, name: str, num_states: int) -> 'CG_Node':
+        """Create a new CG_Node with default CPD."""
         variable = Variable(name=name, num_states=num_states)
-        # Create new CG_Node which will internally create a new DAG_Node with this variable
-        return cls(variable)
+        dag_node = DAG_Node[CG_Node](variable=variable)
+        # Use object.__new__ to create instance without calling __init__
+        # This allows us to manually set fields even though class is frozen
+        temp_node = cls.__new__(cls)
+        object.__setattr__(temp_node, 'variable', variable)
+        object.__setattr__(temp_node, 'dag_node', dag_node)
+        object.__setattr__(temp_node, 'cpd', None)  # Add this line to prevent attribute error
+        # Create default CPD using the temporary node
+        cpd = CPD([temp_node])
+        # Create the real node with all attributes
+        return cls(variable=variable, dag_node=dag_node, cpd=cpd)
 
     @property
-    def variable(self) -> Variable:
-        return self._dag_node.variable
-        
+    def parents(self) -> frozenset[HasParents]:
+        return self.dag_node.parents
+
+    @property
+    def ancestors(self) -> frozenset[HasParents]:
+        return self.dag_node.ancestors
+
     @property
     def name(self) -> str:
-        return self._dag_node.name
-        
+        return self.variable.name
+
+    def __repr__(self) -> str:
+        return f"{self.name}"
+
     @property
     def num_states(self) -> int:
-        return self._dag_node.num_states
-        
+        return self.variable.num_states
+
     def __lt__(self, other) -> bool:
-        return self._dag_node.__lt__(other._dag_node)
+        return self.variable.__lt__(other.variable)
 
-    @property
-    def parents(self) -> frozenset[HasParents]:  # Updated return type
-        return self._dag_node.parents
-        
-    @parents.setter
-    def parents(self, parents: set['CG_Node']):
-        # Create new DAG_Node with updated parents
-        self._dag_node = DAG_Node(
-            variable=self._dag_node.variable,
-            _parents=frozenset(parents)
-        )
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, CG_Node):
+            return NotImplemented
+        # For basic node equality, just compare the variables
+        return self.variable == other.variable
 
-    @property
-    def ancestors(self) -> frozenset[HasParents]:  # Updated return type
-        return self._dag_node.ancestors
-
-    @property
-    def cpd(self) -> 'CPD':
-        return self._cpd
-
-    @cpd.setter
-    def cpd(self, cpd: 'CPD'):
-        self._cpd = cpd
-        new_parents = frozenset(set(cpd.scope) - {self})
-        self._dag_node = DAG_Node[CG_Node](
-            variable=self._dag_node.variable,
-            _parents=new_parents
-        )
+    def __hash__(self) -> int:
+        # Hash should be consistent with equality
+        return hash(self.variable)
 
 @_utils.set_module('cgm')
 class ScopeShapeMismatchError(Exception):
@@ -500,9 +514,17 @@ class CPD(Factor[CG_Node]):
         if child is None:
             child = scope[0]
         self._child = child
-        self._parents: frozenset = frozenset(set(scope) - set([child]))
+        self._parents = frozenset(s for s in scope if s != child)
         self._assert_nocycles()
-        child.cpd = self
+        # Create new child node with updated parent relationships
+        self._child = CG_Node(
+            variable=child.variable,
+            dag_node=DAG_Node[CG_Node](
+                variable=child.variable,
+                _parents=self._parents
+            ),
+            cpd=self
+        )
         self._normalize()
 
     @property
@@ -554,7 +576,6 @@ class CPD(Factor[CG_Node]):
         The scope of the returned factor will exclude all the variables 
         conditioned on. 
         """
-
         specified_parents = set(condition_dict.keys())
         assert specified_parents.issubset(set(self.parents))
         index: list[int | slice] = []
@@ -566,13 +587,8 @@ class CPD(Factor[CG_Node]):
                 index.append(slice(None))
         index_tuple = tuple(index)
         cond_values = self.values[index_tuple]
-        # Store original CPD
-        original_cpd = self.child.cpd
-        # Create new conditioned CPD
-        result = CPD(scope=new_scope, values=cond_values, child=self.child)
-        # Restore original CPD
-        self.child.cpd = original_cpd
-        return result
+        # Create new conditioned CPD without modifying original node's CPD
+        return CPD(scope=new_scope, values=cond_values, child=self.child)
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
         """Marginalize out a distribution over a parent variable.
@@ -608,12 +624,10 @@ class CPD(Factor[CG_Node]):
         return CPD(scope=new_scope, values=new_vals.copy(), child=self.child)
 
     def __repr__(self):
-        rep = "𝑃(" + str(self.child)
         parents = tuple(p for p in self.scope if p != self.child)
         if len(parents) > 0:
-            rep += " | " + ", ".join([f"{s}" for s in parents])
-        rep += ")"
-        return rep
+            return f"𝑃({self.child} | {', '.join(str(s) for s in parents)})"
+        return f"𝑃({self.child})"
 
 @_utils.set_module('cgm')
 class DAG(Generic[D]):
