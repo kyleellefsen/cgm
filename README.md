@@ -29,21 +29,27 @@ The source for this project is available [here][src].
 import cgm
 
 # Define all nodes
-A = cgm.CG_Node('A', num_states=3)
-B = cgm.CG_Node('B', 3)
-C = cgm.CG_Node('C', 3)
-D = cgm.CG_Node('D', 3)
+g = cgm.CG()  # the causal graph
+A = g.node('A', num_states=2)
+B = g.node('B', 2)
+C = g.node('C', 2)
+D = g.node('D', 3)
 # Specify all parents of nodes
-cgm.CPD([B, A])
-cgm.CPD([B, C])
-cgm.CPD([D, A, B])
-# Create causal graph
-graph = cgm.CG([A, B, C, D])
-print(graph)
+phi1 = g.P(B | A)
+phi2 = g.P(B | C)
+phi3 = g.P(D | [A, B])
+print(g)
 # A ← []
 # B ← [C]
 # C ← []
 # D ← [A, B]
+print(phi3.table)
+# 𝑃(D | A, B)  |    D⁰    D¹    D²
+# ────────────────────────────────────
+# A⁰, B⁰       |  0.140  0.068  0.792
+# A⁰, B¹       |  0.451  0.326  0.223
+# A¹, B⁰       |  0.002  0.404  0.595
+# A¹, B¹       |  0.344  0.357  0.299
 ```
 
 [src]: https://github.com/kyleellefsen/cgm

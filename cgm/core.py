@@ -662,9 +662,17 @@ class CPD(Factor[CG_Node]):
         return f"𝑃({self.child})"
 
     @property
-    def table(self) -> str:
-        """Return a formatted string representation of the CPD table."""
-        return _format.format_cpd_table(self)
+    def table(self) -> _format.FactorTableView:
+        """Access the CPD's table representation."""
+        class CPDTableView(_format.FactorTableView):
+            def __init__(self, cpd: 'CPD'):
+                super().__init__(cpd)
+                self.cpd = cpd  # Store as CPD type specifically
+
+            def __str__(self) -> str:
+                return _format.format_cpd_table(self.cpd)  # Use cpd instead of factor
+
+        return CPDTableView(self)
 
 @_utils.set_module('cgm')
 class DAG(Generic[D]):

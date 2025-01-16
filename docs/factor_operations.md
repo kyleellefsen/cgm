@@ -154,15 +154,36 @@ the only allowed variables to condition on are the parents of the CPD.
 ```python
 import cgm
 
-X = cgm.CG_Node('X', num_states=2)
-Y = cgm.CG_Node('Y', num_states=3)
-Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD([X, Y, Z])
+g = cgm.CG()
+X = g.node('X', num_states=2)
+Y = g.node('Y', num_states=3)
+Z = g.node('Z', num_states=4)
+phi_1 = g.P(X | [Y, Z])
+print(phi_1.table)
+# 𝑃(X | Y, Z)  |    X⁰    X¹
+# ─────────────────────────────
+# Y⁰, Z⁰       |  0.794  0.206
+# Y⁰, Z¹       |  0.526  0.474
+# Y⁰, Z²       |  0.626  0.374
+# Y⁰, Z³       |  0.522  0.478
+# Y¹, Z⁰       |  0.747  0.253
+# Y¹, Z¹       |  0.514  0.486
+# Y¹, Z²       |  0.635  0.365
+# Y¹, Z³       |  0.418  0.582
+# Y², Z⁰       |  0.447  0.553
+# Y², Z¹       |  0.371  0.629
+# Y², Z²       |  0.371  0.629
+# Y², Z³       |  0.416  0.584
+
 phi_2 = phi_1.condition({Y: 0, Z: 1})
 print(phi_2)
 # 𝐏(X)
 print(type(phi_2))  # The result is a CPD
 # <class 'cgm.CPD'>
+print(phi_2.table)
+# 𝑃(X) |    X⁰    X¹
+# ──────────────────
+#      |  0.526  0.474
 ```
 
 ````
@@ -208,10 +229,11 @@ $$
 ```python
 import cgm
 
-X = cgm.CG_Node('X', 2)
-Y = cgm.CG_Node('Y', 2)
+g = cgm.CG()
+X = g.node('X', num_states=2)
+Y = g.node('Y', num_states=3)
 phi1 = cgm.Factor([X, Y])
-cpd = cgm.CPD([Y, X])
+cpd = g.P(Y | X)
 phi2 = phi1.marginalize_cpd(cpd)
 print(phi2)
 # ϕ(X)
@@ -247,14 +269,23 @@ possible to marginalize over a single variable at a time.
 ```python
 import cgm
 
-X = cgm.CG_Node('X', num_states=2)
-Y = cgm.CG_Node('Y', num_states=3)
-Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD([X, Y, Z])
-phi_2 = cgm.CPD([Y, Z])
+g = cgm.CG()
+X = g.node('X', 2)
+Y = g.node('Y', 3)
+Z = g.node('Z', 4)
+phi_1 = g.P(X | [Y, Z])
+phi_2 = g.P(Y | Z)
 phi_3 = phi_1.marginalize_cpd(phi_2)
 print(phi_3)
 # 𝐏(X | Z)
+print(phi_3.table)
+# 𝑃(X | Z)  |    X⁰    X¹
+# ──────────────────────────
+# Z⁰        |  0.377  0.623
+# Z¹        |  0.227  0.773
+# Z²        |  0.388  0.612
+# Z³        |  0.539  0.461
+
 ```
 
 ````
