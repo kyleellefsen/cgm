@@ -36,10 +36,11 @@ def test_factor_creation_with_integer_value():
     np.testing.assert_array_equal(factor.values, expected_values)
 
 def test_cpd_creation_with_integer_value():
+    cg = cgm.CG()
     num_a_states = 6
-    A = cgm.CG_Node.from_params('A', num_a_states)
-    B = cgm.CG_Node.from_params('B', 3)
-    C = cgm.CG_Node.from_params('C', 3)
+    A = cgm.CG_Node.from_params('A', num_a_states, cg)
+    B = cgm.CG_Node.from_params('B', 3, cg)
+    C = cgm.CG_Node.from_params('C', 3, cg)
     value = 5
     factor = cgm.CPD([A, B, C], value)
     expected_values = np.full((num_a_states, 3, 3), 1 / num_a_states)
@@ -63,8 +64,9 @@ def test_factor_property_immutability():
 def test_cpd_property_immutability():
     num_states_a = 2
     num_states_b = 3
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
     values = np.array([[.11, .22, .33],
                        [.89, .78, .67]])
     phi1 = cgm.CPD([a, b], values=values)
@@ -119,19 +121,21 @@ def test_check_input_with_non_unique_names():
         assert var_name in str(exc_info.value)
 
 def test_CG_Node():
-    a = cgm.CG_Node.from_params('a', 2)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', 2, cg)
     assert a.name == 'a'
     assert a.num_states == 2
 
 def test_CPD_2nodes():
+    cg = cgm.CG()
     num_states_a = 2
     num_states_b = 3
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
     phi1 = cgm.CPD([a, b])
     assert phi1.child == a
-    assert phi1.parents == {b}
-    assert a.parents == {b}
+    assert phi1.parents == frozenset({b})
+    assert a.parents == frozenset({b})
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
     assert phi1.scope == (a, b)
@@ -141,13 +145,14 @@ def test_CPD_3nodes():
     num_states_a = 2
     num_states_b = 3
     num_states_c = 4
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
-    c = cgm.CG_Node.from_params('c', num_states_c)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
+    c = cgm.CG_Node.from_params('c', num_states_c, cg)
     phi1 = cgm.CPD([a,b,c])
     assert phi1.child == a
-    assert phi1.parents == {b, c}
-    assert a.parents == {b, c}
+    assert phi1.parents == frozenset({b, c})
+    assert a.parents == frozenset({b, c})
     margin = phi1.marginalize([phi1.child]).values
     npt.assert_allclose(margin, np.ones_like(margin))
     assert phi1.scope == (a, b, c)
@@ -157,9 +162,10 @@ def test_CPD_condition():
     num_states_a = 2
     num_states_b = 3
     num_states_c = 4
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
-    c = cgm.CG_Node.from_params('c', num_states_c)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
+    c = cgm.CG_Node.from_params('c', num_states_c, cg)
     values_a1 = np.array([[.3, .8, .2, .7],
                           [.7, .2, .8, .1],
                           [.1, .5, .3, .9]])
@@ -309,8 +315,9 @@ def test_factor_argmax():
 def test_cpd_marginalize_2vars():
     num_states_a = 2
     num_states_b = 3
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
     values_a = np.array([[.11, .22, .33],
                          [.89, .78, .67]])
     phi1 = cgm.CPD([a, b], values=values_a)
@@ -324,9 +331,10 @@ def test_cpd_marginalize_3vars():
     num_states_a = 2
     num_states_b = 3
     num_states_c = 4
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
-    c = cgm.CG_Node.from_params('c', num_states_c)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
+    c = cgm.CG_Node.from_params('c', num_states_c, cg)
     values_a1 = np.array([[.3, .8, .2, .7],
                           [.7, .2, .8, .1],
                           [.1, .5, .3, .9]])
@@ -351,8 +359,9 @@ def test_cpd_marginalize_3vars():
 def test_cpd_marginalize():
     num_states_x = 2
     num_states_y = 3
-    x = cgm.CG_Node.from_params('X', num_states_x)
-    y = cgm.CG_Node.from_params('Y', num_states_y)
+    cg = cgm.CG()
+    x = cgm.CG_Node.from_params('X', num_states_x, cg)
+    y = cgm.CG_Node.from_params('Y', num_states_y, cg)
     phi1 = cgm.Factor([x, y], np.ones((num_states_x, num_states_y)))
     cpd = cgm.CPD([y, x], np.ones((num_states_y, num_states_x)))
     result = phi1.marginalize_cpd(cpd)
@@ -364,9 +373,10 @@ def test_cpd_marginalize_two_parents():
     num_states_x = 2
     num_states_y = 3
     num_states_z = 4
-    x = cgm.CG_Node.from_params('X', num_states_x)
-    y = cgm.CG_Node.from_params('Y', num_states_y)
-    z = cgm.CG_Node.from_params('Z', num_states_z)
+    cg = cgm.CG()
+    x = cgm.CG_Node.from_params('X', num_states_x, cg)
+    y = cgm.CG_Node.from_params('Y', num_states_y, cg)
+    z = cgm.CG_Node.from_params('Z', num_states_z, cg)
     phi1 = cgm.Factor([x, y, z], np.ones((num_states_x, num_states_y, num_states_z)))
     cpd = cgm.CPD([y, x, z], np.ones((num_states_y, num_states_x, num_states_z)))
     result = phi1.marginalize_cpd(cpd)
@@ -436,9 +446,10 @@ def test_cpd_permute_scope():
     num_states_a = 2
     num_states_b = 3
     num_states_c = 4
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
-    c = cgm.CG_Node.from_params('c', num_states_c)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
+    c = cgm.CG_Node.from_params('c', num_states_c, cg)
     values_a1 = np.array([[.3, .8, .2, .7],
                           [.7, .2, .8, .1],
                           [.1, .5, .3, .9]])
@@ -463,10 +474,11 @@ def test_cpd_permute_scope():
 def test_cpd_set_scope():
     num_states_a = 2
     num_states_b = 3
-    a = cgm.CG_Node.from_params('a', num_states_a)
-    b = cgm.CG_Node.from_params('b', num_states_b)
-    c = cgm.CG_Node.from_params('c', num_states_a)
-    d = cgm.CG_Node.from_params('d', num_states_b)
+    cg = cgm.CG()
+    a = cgm.CG_Node.from_params('a', num_states_a, cg)
+    b = cgm.CG_Node.from_params('b', num_states_b, cg)
+    c = cgm.CG_Node.from_params('c', num_states_a, cg)
+    d = cgm.CG_Node.from_params('d', num_states_b, cg)
     values = np.array([[0, .6, .9],
                        [1, .4, .1]])
     phi1 = cgm.CPD([a, b], values)
@@ -503,9 +515,10 @@ def test_variable_equality():
 
 def test_cg_node_equality():
     """Test that CG_Node equality works correctly"""
-    a1 = cgm.CG_Node.from_params('a', 2)
-    a2 = cgm.CG_Node.from_params('a', 2)
-    b = cgm.CG_Node.from_params('b', 2)
+    cg = cgm.CG()
+    a1 = cgm.CG_Node.from_params('a', 2, cg)
+    a2 = cgm.CG_Node.from_params('a', 2, cg)
+    b = cgm.CG_Node.from_params('b', 2, cg)
     
     assert a1 == a2  # Same name, states, no parents
     assert a1 != b   # Different name
@@ -515,17 +528,17 @@ def test_cg_node_equality():
     phi = cgm.CPD([a1, b])
     a3 = phi.child  # New node with b as parent
     
-    assert a1 != a3  # Same name but different parents
-    assert len({a1, a3}) == 2  # Test hash inequality
+    assert a1 == a3  # different parents but same node
+    assert len({a1, a3}) == 1  # Test hash equality
 
 def test_dag_node_equality():
     """Test that DAG_Node equality works correctly"""
     a = cgm.Variable('a', 2)
     b = cgm.Variable('b', 2)
-    
-    d1 = cgm.DAG_Node[cgm.CG_Node](variable=a)
-    d2 = cgm.DAG_Node[cgm.CG_Node](variable=a)
-    d3 = cgm.DAG_Node[cgm.CG_Node](variable=b)
+    dag = cgm.DAG()
+    d1 = cgm.DAG_Node[cgm.CG_Node](variable=a, dag=dag)
+    d2 = cgm.DAG_Node[cgm.CG_Node](variable=a, dag=dag)
+    d3 = cgm.DAG_Node[cgm.CG_Node](variable=b, dag=dag)
     
     assert d1 == d2  # Same variable, no parents
     assert d1 != d3  # Different variable

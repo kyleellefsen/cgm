@@ -2,8 +2,10 @@
 """
 The core module contains the basic building blocks of a Causal Graphical Model.
 """
-from typing import List, Sequence, TypeVar, Generic, Protocol, FrozenSet
+from typing import List, Sequence, TypeVar, Generic, Protocol, FrozenSet, Optional
+import functools
 import collections
+from collections import OrderedDict
 import dataclasses
 import numpy as np
 from . import _utils
@@ -20,7 +22,7 @@ class HasParents(Protocol[DCovariant]):
     @property 
     def ancestors(self) -> FrozenSet[DCovariant]: ...
 
-class ComparableHasParents(HasParents[DCovariant], HasComparison, Protocol):
+class ComparableHasParents(HasParents[DCovariant], HasComparison, Protocol[DCovariant]):
     pass
 
 class HasVariable(Protocol):
@@ -28,7 +30,7 @@ class HasVariable(Protocol):
     def name(self) -> str: ...
     @property
     def num_states(self) -> int: ...
-    def __lt__(self, other) -> bool: ...
+    def __lt__(self, other: 'HasVariable') -> bool: ...
 
 V = TypeVar('V', bound='HasVariable')
 
@@ -73,38 +75,31 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
     created.
     """
     variable: Variable
-    _parents: frozenset[D] = dataclasses.field(default_factory=frozenset)
-    _ancestors: frozenset[D] = dataclasses.field(init=False)
+    dag: 'DAG[D]'
 
-    def __init__(self, variable: Variable, _parents: frozenset[D] = frozenset()):
-        # Create new variable instance
-        new_variable = Variable(name=variable.name, num_states=variable.num_states)
-        object.__setattr__(self, 'variable', new_variable)
-        object.__setattr__(self, '_parents', _parents)
-
-        # Compute ancestors
-        parents_remaining = _parents.copy()
-        ancestors_acc = set()
-        while parents_remaining:
-            node = next(iter(parents_remaining))
-            parents_remaining = parents_remaining - {node}
-            ancestors_acc.add(node)
-            ancestors_acc.update(node.ancestors)
-            parents_remaining = parents_remaining - ancestors_acc
-        object.__setattr__(self, '_ancestors', frozenset(ancestors_acc))
+    def __post_init__(self):
+        self.dag.add_node(self, parents=set(), replace=False)
 
     @property
     def name(self) -> str:
         """Return the name of the variable."""
         return self.variable.name
 
-    def __repr__(self) -> str:
-        return f"{self.name}"
+    @property
+    def parents(self) -> FrozenSet:
+        return self.dag.get_parents(self)
+
+    @property
+    def ancestors(self) -> FrozenSet:
+        return self.dag.get_ancestors(self)
 
     @property
     def num_states(self) -> int:
         """Return the number of states the variable can take on."""
         return self.variable.num_states
+
+    def __repr__(self) -> str:
+        return f"{self.name}"
 
     def __lt__(self, other) -> bool:
         return self.variable.__lt__(other.variable)
@@ -112,18 +107,12 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
     def __eq__(self, other) -> bool:
         if not isinstance(other, DAG_Node):
             return NotImplemented
-        return (self.variable == other.variable and self.parents == other.parents)
+        return self.variable == other.variable and self.dag == other.dag
 
     def __hash__(self) -> int:
-        return hash((self.variable, frozenset(self.parents)))
+        return hash((self.variable, self.dag))
 
-    @property
-    def parents(self) -> frozenset[D]:  # Now matches protocol with concrete type D
-        return self._parents
 
-    @property
-    def ancestors(self) -> frozenset[D]:  # Now matches protocol with concrete type D
-        return self._ancestors
 
 @_utils.set_module('cgm')
 @dataclasses.dataclass(frozen=True)
@@ -137,54 +126,58 @@ class CG_Node(HasParents, HasVariable):
     states of the variable. 
 
     Example:
-
-        A = cgm.cgm.CG_Node.from_params('A', 2)
-        B = cgm.cgm.CG_Node.from_params('B', 2)
-        C = cgm.cgm.CG_Node.from_params('C', 2)
+        cg = cgm.CG()
+        mkNode = lambda name, num_states: cgm.CG_Node.from_params(name, num_states, cg)
+        A = mkNode('A', 2)
+        B = mkNode('B', 2)
+        C = mkNode('C', 2)
         phi1 = cgm.CPD(A, [B])
         phi2 = cgm.CPD(B, [C])
         phi3 = cgm.CPD(C, [])
-
-
     """
-    variable: Variable
     dag_node: DAG_Node['CG_Node']
-    cpd: 'CPD'
+    cg: 'CG'
 
     @classmethod
-    def from_params(cls, name: str, num_states: int) -> 'CG_Node':
+    def from_params(cls, name: str, num_states: int, cg: 'CG') -> 'CG_Node':
         """Create a new CG_Node with default CPD."""
         variable = Variable(name=name, num_states=num_states)
-        dag_node = DAG_Node[CG_Node](variable=variable)
-        # Use object.__new__ to create instance without calling __init__
-        # This allows us to manually set fields even though class is frozen
-        temp_node = cls.__new__(cls)
-        object.__setattr__(temp_node, 'variable', variable)
-        object.__setattr__(temp_node, 'dag_node', dag_node)
-        object.__setattr__(temp_node, 'cpd', None)  # Add this line to prevent attribute error
-        # Create default CPD using the temporary node
-        cpd = CPD([temp_node])
-        # Create the real node with all attributes
-        return cls(variable=variable, dag_node=dag_node, cpd=cpd)
+        dag_node = DAG_Node(variable=variable, dag=cg.dag)
+        node = cls(dag_node=dag_node, cg=cg)
+        CPD(scope=[node])  # Creates default CPD
+        return node
 
     @property
-    def parents(self) -> frozenset[HasParents]:
-        return self.dag_node.parents
+    def parents(self) -> frozenset['CG_Node']:
+        return frozenset(CG_Node(dag_node=p, cg=self.cg) for p in self.dag_node.parents)
 
     @property
-    def ancestors(self) -> frozenset[HasParents]:
-        return self.dag_node.ancestors
+    def ancestors(self) -> frozenset['CG_Node']:
+         return frozenset(CG_Node(dag_node=a, cg=self.cg) for a in self.dag_node.ancestors)
+
+    @property
+    def variable(self) -> Variable:
+        return self.dag_node.variable
 
     @property
     def name(self) -> str:
         return self.variable.name
 
-    def __repr__(self) -> str:
-        return f"{self.name}"
-
     @property
     def num_states(self) -> int:
         return self.variable.num_states
+
+    @property
+    def dag(self) -> 'DAG[CG_Node]':
+        return self.dag_node.dag
+
+    @property
+    def cpd(self) -> Optional['CPD']:
+        """Get the CPD associated with this node."""
+        return self.cg.get_cpd(self)
+
+    def __repr__(self) -> str:
+        return f"{self.name}"
 
     def __lt__(self, other) -> bool:
         return self.variable.__lt__(other.variable)
@@ -192,12 +185,10 @@ class CG_Node(HasParents, HasVariable):
     def __eq__(self, other) -> bool:
         if not isinstance(other, CG_Node):
             return NotImplemented
-        # For basic node equality, just compare the variables
-        return self.variable == other.variable
+        return self.variable == other.variable and self.dag == other.dag
 
     def __hash__(self) -> int:
-        # Hash should be consistent with equality
-        return hash(self.variable)
+        return hash((self.variable, self.dag))
 
 @_utils.set_module('cgm')
 class ScopeShapeMismatchError(Exception):
@@ -482,9 +473,11 @@ class CPD(Factor[CG_Node]):
 
     Example:
     ```
-      A = cgm.cgm.CG_Node.from_params('A', 2)
-      B = cgm.cgm.CG_Node.from_params('B', 2)
-      C = cgm.cgm.CG_Node.from_params('C', 2)
+      cg = cgm.CG()
+      mkNode = lambda name, num_states: cgm.CG_Node.from_params(name, num_states, cg)
+      A = mkNode('A', 2)
+      B = mkNode('B', 2)
+      C = mkNode('C', 2)
       phi1 = cgm.CPD(A, [B])
       phi2 = cgm.CPD(B, [C])
       phi3 = cgm.CPD(C, [])
@@ -496,7 +489,8 @@ class CPD(Factor[CG_Node]):
                  scope: Sequence[CG_Node],
                  values: np.ndarray | None = None,
                  child: CG_Node | None = None,
-                 rng: np.random.Generator | None = None):
+                 rng: np.random.Generator | None = None,
+                 virtual: bool = False):
         """Create a conditional probability distribution.
         
         Args:
@@ -508,23 +502,27 @@ class CPD(Factor[CG_Node]):
               variable in the scope is assumed to be the child.
             rng: A numpy random number generator used to set the values.
               Only used if values is None.
+            virtual: If True, the CPD is not added to the DAG. This is useful
+                for creating derived CPDs
               
         """
+
+        # The scope of the child is stored in the DAG, in a dict for that node
         super().__init__(scope, values, rng)
+        # Set child and parents
         if child is None:
             child = scope[0]
         self._child = child
         self._parents = frozenset(s for s in scope if s != child)
+        if not virtual:
+            # Add node to DAG *before* checking cycles
+            dag: DAG[CG_Node] = child.dag_node.dag
+            dag.add_node(child.dag_node, parents=self._parents, replace=True)            
+            # Register the CPD with the CG
+            child.cg.set_cpd(child, self)
+
+        # Now check cycles and normalize
         self._assert_nocycles()
-        # Create new child node with updated parent relationships
-        self._child = CG_Node(
-            variable=child.variable,
-            dag_node=DAG_Node[CG_Node](
-                variable=child.variable,
-                _parents=self._parents
-            ),
-            cpd=self
-        )
         self._normalize()
 
     @property
@@ -536,6 +534,11 @@ class CPD(Factor[CG_Node]):
     def parents(self) -> frozenset[CG_Node]:
         """Return the parents of the CPD."""
         return self._parents
+
+    @property
+    def dag(self) -> 'DAG[CG_Node]':
+        """Return the DAG that the CPD is associated with."""
+        return self.child.dag_node.dag
 
     def _assert_nocycles(self):
         child = self.child
@@ -588,7 +591,7 @@ class CPD(Factor[CG_Node]):
         index_tuple = tuple(index)
         cond_values = self.values[index_tuple]
         # Create new conditioned CPD without modifying original node's CPD
-        return CPD(scope=new_scope, values=cond_values, child=self.child)
+        return CPD(scope=new_scope, values=cond_values, child=self.child, virtual=True)
 
     def marginalize_cpd(self, cpd: 'CPD') -> 'CPD':
         """Marginalize out a distribution over a parent variable.
@@ -631,10 +634,77 @@ class CPD(Factor[CG_Node]):
 
 @_utils.set_module('cgm')
 class DAG(Generic[D]):
-    """Directed Acyclic Graph"""
+    """Mutable Directed Acyclic Graph."""
 
-    def __init__(self, nodes: Sequence[D]):
-        self.nodes = sorted(nodes)
+    def __init__(self, nodes: Sequence[D | None] | None = None):
+        if nodes is None:
+            nodes = []
+        self._parent_dict: OrderedDict[DAG_Node[D], FrozenSet[DAG_Node[D]]] = OrderedDict()
+        filtered_nodes = [n for n in nodes if n is not None]
+        for node in sorted(filtered_nodes):
+            self.add_node(node, frozenset(), replace=False)
+
+    @property
+    def nodes(self) -> list[DAG_Node[D]]:
+        return list(self._parent_dict.keys())
+
+    def get_parents(self, node: DAG_Node[D]) -> frozenset[DAG_Node[D]]:
+        """Return the parents of a node."""
+        return self._parent_dict.get(node, frozenset())
+
+    def add_node(
+        self,
+        node: DAG_Node[D] | D,  # Allow both DAG_Node and CG_Node
+        parents: FrozenSet[DAG_Node[D] | D] | set[DAG_Node[D] | D],
+        replace: bool = False
+    ) -> None:
+        """Add a node to the graph."""
+        # Convert CG_Node to its dag_node if needed
+        node_to_add = node.dag_node if hasattr(node, 'dag_node') else node
+        # Convert parent CG_Nodes to their dag_nodes
+        parents_frozen = frozenset(
+            p.dag_node if hasattr(p, 'dag_node') else p 
+            for p in parents
+        )
+        # Clear cached properties
+        if hasattr(self, '_ancestor_dict'):
+            delattr(self, '_ancestor_dict')
+        # First ensure node exists in parent dict
+        if node_to_add not in self._parent_dict:
+            self._parent_dict[node_to_add] = frozenset()
+        # Then add parents if they don't exist
+        for parent in parents_frozen:
+            if parent not in self._parent_dict:
+                self._parent_dict[parent] = frozenset()
+        if not replace and self._parent_dict[node_to_add] != frozenset():
+            if self._parent_dict[node_to_add] == parents_frozen:
+                return
+            raise ValueError(f"Node {node_to_add} already exists with different parents")
+        self._parent_dict[node_to_add] = parents_frozen
+        self._parent_dict = OrderedDict(sorted(self._parent_dict.items()))
+
+    @functools.cached_property
+    def _ancestor_dict(self) -> dict[DAG_Node[D], frozenset[DAG_Node[D]]]:
+        """Return a dictionary of ancestors for each node."""
+        ancestors: dict[DAG_Node[D], set[DAG_Node[D]]] = {node: set() for node in self._parent_dict}
+        for node in self._parent_dict:
+            current_parents = self._parent_dict[node]
+            stack = list(current_parents)
+            visited = set()
+            while stack:
+                parent = stack.pop()
+                if parent not in visited:
+                    visited.add(parent)
+                    ancestors[node].add(parent)
+                    stack.extend(self._parent_dict[parent])
+                    
+        return {node: frozenset(ancs) for node, ancs in ancestors.items()}
+
+    def get_ancestors(self, node: DAG_Node[D]) -> frozenset[DAG_Node[D]]:
+        """Return the ancestors of a node."""
+        if node not in self._parent_dict:
+            return frozenset()
+        return self._ancestor_dict[node]
 
     def __repr__(self):
         s = ''
@@ -644,14 +714,34 @@ class DAG(Generic[D]):
         return s
 
 @_utils.set_module('cgm')
-class CG(DAG[CG_Node]):
+@dataclasses.dataclass(frozen=True)
+class CG:
     """Causal Graph
     Contains a list of CG_Nodes. The information about connectivity is stored 
-    at each node.
+    in the DAG. 
     """
+    dag: DAG[CG_Node] = dataclasses.field(default_factory=DAG[CG_Node])
+    _cpd_dict: dict[CG_Node, CPD] = dataclasses.field(default_factory=dict)
 
-    def __init__(self, nodes: list[CG_Node]):
-        super().__init__(nodes)
+    def get_cpd(self, node: CG_Node) -> CPD | None:
+        """Get the CPD associated with a node."""
+        return self._cpd_dict.get(node)
+
+    def set_cpd(self, node: CG_Node, cpd: CPD) -> None:
+        """Associate a CPD with a node."""
+        self._cpd_dict[node] = cpd
+
+    @property
+    def nodes(self) -> list[CG_Node]:
+        """Returns the list of CG_Nodes in the graph.
+        
+        While the underlying DAG stores DAG_Node objects, this property reconstructs 
+        and returns the original CG_Node objects.
+        """
+        return [CG_Node(dag_node=node, cg=self) for node in self.dag.nodes]
+
+    def __repr__(self):
+        return repr(self.dag)
 
 
 del _utils
