@@ -90,21 +90,29 @@ print(psi)
 
 #### CPD Multiplication
 
-CPD multiplication current works in exactly the same way as factor multiplcation.
+CPD multiplication works exactly the same way as factor multiplcation.
+However, the API for creating CPDs is slightly different.
 
 ```python
 import cgm
 
-X = cgm.CG_Node('X', num_states=2)
-Y = cgm.CG_Node('Y', num_states=3)
-Z = cgm.CG_Node('Z', num_states=4)
-phi_1 = cgm.CPD([X, Y, Z])
-phi_2 = cgm.CPD([Y, Z])
+g = cgm.CG()
+X = g.node('X', num_states=2)
+Y = g.node('Y', num_states=3)
+Z = g.node('Z', num_states=4)
+phi_1 = g.P(X | [Y, Z])
+phi_2 = g.P(Y | Z)
 phi_3 = phi_1 * phi_2
 print(phi_3)
 # ϕ(X, Y, Z)
 print(type(phi_3))  # The CPD is now an unnormalized Factor.
-# <class 'cgm.core.Factor'>
+# <class 'cgm.Factor'>
+print(phi_3.table)
+# ϕ(X⁰, Y, Z) |    Z⁰    Z¹    Z²    Z³
+# ─────────────────────────────────────
+# Y⁰     |  0.136  0.099  0.126  0.141
+# Y¹     |  0.020  0.182  0.010  0.289
+# Y²     |  0.233  0.213  0.113  0.249
 ```
 
 

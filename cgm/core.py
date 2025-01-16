@@ -9,6 +9,8 @@ from collections import OrderedDict
 import dataclasses
 import numpy as np
 from . import _utils
+from . import _format
+
 
 DCovariant = TypeVar('DCovariant', bound='ComparableHasParents', covariant=True)
 D = TypeVar('D', bound='ComparableHasParents')
@@ -219,6 +221,9 @@ class NonUniqueVariableNamesError(Exception):
                    "unique names."
         super().__init__(message)
 
+
+
+
 @_utils.set_module('cgm')
 class Factor(Generic[V]):
     """A factor is a function that has a list of variables in its scope, and 
@@ -320,6 +325,16 @@ class Factor(Generic[V]):
 
     def __repr__(self):
         return "ϕ(" + ", ".join([f"{s}" for s in self.scope]) + ")"
+
+    @property
+    def table(self) -> _format.FactorTableView:
+        """Access the factor's table representation.
+        
+        Returns:
+            FactorTableView object that can be used either as a property (for default view)
+            or as a method (for custom views)
+        """
+        return _format.FactorTableView(self)
 
     def _get_random_values(self, rng: np.random.Generator):
         num_dimensions = tuple(s.num_states for s in self.scope)
@@ -472,127 +487,9 @@ class Factor(Generic[V]):
         cond_values = self.values[index_tuple]
         return Factor(list(new_scope), cond_values)
 
-def _int_to_superscript(n: int) -> str:
-    """Convert an integer to its Unicode superscript representation."""
-    superscript_map = {
-        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
-        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
-    }
-    return ''.join(superscript_map[d] for d in str(n))
 
-def _format_cpd_table(cpd) -> str:
-    """Format a CPD's values as a human-readable table following Koller & Friedman notation.
-    
-    The format follows Figure 3.4 in "Probabilistic Graphical Models":
-    - Child variable states are columns
-    - Parent variable configurations are rows with superscript state indicators
-    - Probabilities are formatted to 3 decimal places
-    
-    Args:
-        cpd: A CPD object containing child, parents, and values attributes
 
-    Example Usage:
 
-    ```python
-    g = cgm.Graph()
-    A = g.node('A', 2)
-    B = g.node('B', 3)
-    C = g.node('C', 4)
-    phi3 = g.P(C | [B, A])
-    print(phi3.table)
-    ```
-    
-    𝑃(C | B, A)  |    C⁰    C¹    C²    C³
-    ───────────────────────────────────────────
-    A⁰, B⁰       |  0.210  0.114  0.337  0.339
-    A⁰, B¹       |  0.403  0.162  0.231  0.204
-    A⁰, B²       |  0.093  0.065  0.596  0.245
-    A¹, B⁰       |  0.742  0.150  0.063  0.044
-    A¹, B¹       |  0.059  0.076  0.438  0.427
-    A¹, B²       |  0.146  0.205  0.154  0.494
-
-    """
-    child = cpd.child
-    parents = sorted(list(cpd.parents))
-    
-    # Find child dimension in the values array
-    child_dim = cpd.scope.index(child)
-    
-    # Constants for formatting
-    PROB_WIDTH = 6  # Width for probability values
-    COLUMN_WIDTH = 7  # Total column width including spacing
-
-    if not parents:
-        # Case: No parents - P(x)
-        prob_width = child.num_states * COLUMN_WIDTH
-        total_width = max(prob_width + 4, 12)  # Min width of 12
-
-        lines = []
-        # Header with distribution name and child states
-        header = f"{cpd} |"
-        for x in range(child.num_states):
-            header += f" {child.name}{_int_to_superscript(x)}".rjust(PROB_WIDTH)
-        lines.append(header)
-        lines.append("─" * total_width)
-
-        # Single row of probabilities
-        row = "    |"
-        selector = [0] * len(cpd.scope)
-        for x in range(child.num_states):
-            selector[child_dim] = x
-            row += f" {cpd.values[tuple(selector)]:>6.3f}"
-        lines.append(row)
-        return "\n".join(lines)
-
-    else:
-        # General case with parents
-        # Calculate max width needed for row labels
-        header_str = str(cpd).rjust(PROB_WIDTH)
-
-        # Generate all parent state combinations to find max width needed
-        parent_states = [range(p.num_states) for p in parents]
-        from itertools import product
-        max_label_width = len(header_str)
-        for parent_vals in product(*parent_states):
-            row_label = ", ".join(f"{p.name}{_int_to_superscript(v)}"
-                                for p, v in zip(parents, parent_vals))
-            max_label_width = max(max_label_width, len(row_label))
-
-        # Add a small buffer
-        label_width = max_label_width + 1
-
-        lines = []
-        # Header row with distribution name and child states
-        header = f"{header_str:{label_width}} |"
-        for x in range(child.num_states):
-            header += f" {child.name}{_int_to_superscript(x)}".rjust(PROB_WIDTH)
-        lines.append(header)
-
-        # Calculate total width for separator line
-        total_width = label_width + 3 + (child.num_states * COLUMN_WIDTH)
-        lines.append("─" * total_width)
-
-        # Generate rows for each parent configuration
-        for parent_vals in product(*parent_states):
-            row_label = ", ".join(f"{p.name}{_int_to_superscript(v)}"
-                                for p, v in zip(parents, parent_vals))
-            row = f"{row_label:{label_width}} |"
-
-            # Create a selector array that puts values in the right dimensions
-            selector = [0] * len(cpd.scope)
-            # Map parent values to the correct dimensions
-            for parent, val in zip(parents, parent_vals):
-                parent_dim = cpd.scope.index(parent)
-                selector[parent_dim] = val
-
-            # Add probabilities for this parent configuration
-            for x in range(child.num_states):
-                selector[child_dim] = x
-                prob = cpd.values[tuple(selector)]
-                row += f" {prob:>6.3f}"
-            lines.append(row)
-
-        return "\n".join(lines)
 
 @_utils.set_module('cgm')
 class CPD(Factor[CG_Node]):
@@ -767,7 +664,7 @@ class CPD(Factor[CG_Node]):
     @property
     def table(self) -> str:
         """Return a formatted string representation of the CPD table."""
-        return _format_cpd_table(self)
+        return _format.format_cpd_table(self)
 
 @_utils.set_module('cgm')
 class DAG(Generic[D]):
