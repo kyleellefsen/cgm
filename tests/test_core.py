@@ -35,6 +35,38 @@ def test_factor_creation_with_integer_value():
     expected_values = np.full((2, 2, 2), value)
     np.testing.assert_array_equal(factor.values, expected_values)
 
+def test_cpd_creation_using_cg():
+    g = cgm.CG()
+    A = g.node('A', 2)
+    B = g.node('B', 2)
+    C = g.node('C', 2)
+    # Test creation with explicit child specification
+    phi1 = cgm.CPD(scope=[A, B], child=A)
+    assert phi1.child == A
+    assert phi1.parents == frozenset({B})
+    assert A.parents == frozenset({B})
+    # Check normalization - should sum to 1 for each parent configuration
+    margin = phi1.marginalize([phi1.child]).values
+    np.testing.assert_allclose(margin, np.ones_like(margin))
+    # Test creation with default child (first node)
+    phi2 = cgm.CPD([B, C])
+    assert phi2.child == B
+    assert phi2.parents == frozenset({C})
+    assert B.parents == frozenset({C})
+    margin = phi2.marginalize([phi2.child]).values
+    np.testing.assert_allclose(margin, np.ones_like(margin))
+    # Test creation of prior distribution (no parents)
+    phi3 = cgm.CPD([C])
+    assert phi3.child == C
+    assert phi3.parents == frozenset()
+    assert C.parents == frozenset()
+    assert np.sum(phi3.values) == 1.0  # Should be normalized
+    # Test that CPDs are properly registered with the CG
+    assert g.get_cpd(A) == phi1
+    assert g.get_cpd(B) == phi2
+    assert g.get_cpd(C) == phi3
+
+
 def test_cpd_creation_with_integer_value():
     cg = cgm.CG()
     num_a_states = 6
@@ -544,3 +576,229 @@ def test_dag_node_equality():
     assert d1 != d3  # Different variable
     assert len({d1, d2}) == 1  # Test hash equality
     assert len({d1, d3}) == 2  # Test hash inequality
+
+def test_cpd_probability_notation():
+    """Test the new probability notation API for creating CPDs."""
+    g = cgm.CG()
+    A = g.node('A', 2)
+    B = g.node('B', 2)
+    C = g.node('C', 2)
+
+    # Test prior creation
+    phi1 = g.P(A)
+    assert phi1.child == A
+    assert phi1.parents == frozenset()
+    assert phi1.scope == (A,)
+    assert np.sum(phi1.values) == 1.0  # Should be normalized
+    
+    # Test single parent case
+    phi2 = g.P(B | A)
+    assert phi2.child == B
+    assert phi2.parents == frozenset({A})
+    assert phi2.scope == (B, A)
+    margin = phi2.marginalize([phi2.child]).values
+    np.testing.assert_allclose(margin, np.ones_like(margin))  # Should be normalized for each parent config
+
+    # Test multiple parents case
+    phi3 = g.P(C | [A, B])
+    assert phi3.child == C
+    assert phi3.parents == frozenset({A, B})
+    assert phi3.scope == (C, A, B)
+    margin = phi3.marginalize([phi3.child]).values
+    np.testing.assert_allclose(margin, np.ones_like(margin))
+
+    # Test with explicit values - using new nodes to avoid cycles
+    g2 = cgm.CG()
+    X = g2.node('X', 2)
+    Y = g2.node('Y', 2)
+    values = np.array([[0.2, 0.8], [0.7, 0.3]]).T  # Valid CPD for binary parent/child
+    phi4 = g2.P(X | Y, values=values)
+    assert phi4.child == X
+    assert phi4.parents == frozenset({Y})
+    np.testing.assert_allclose(phi4.values, values)
+
+def test_cpd_notation_validation():
+    """Test error cases and validation for the probability notation API."""
+    g = cgm.CG()
+    A = g.node('A', 2)
+    B = g.node('B', 2)
+
+    # Test invalid values shape
+    invalid_values = np.array([[0.2, 0.8]])  # Wrong shape for binary parent/child
+    with pytest.raises(cgm.ScopeShapeMismatchError):
+        g.P(A | B, values=invalid_values)
+
+    # Test non-normalized values
+    invalid_values = np.array([[0.2, 0.8], [0.7, 0.4]])  # Doesn't sum to 1
+    phi = g.P(A | B, values=invalid_values)
+    margin = phi.marginalize([phi.child]).values
+    np.testing.assert_allclose(margin, np.ones_like(margin))
+
+    # Test cycle creation - should fail with assertion error
+    g2 = cgm.CG()
+    X = g2.node('X', 2)
+    Y = g2.node('Y', 2)
+    g2.P(Y | X)  # Create Y depends on X
+    with pytest.raises(AssertionError):
+        g2.P(X | Y)  # Should fail when trying to make X depend on Y
+
+
+
+def test_factor_dimensions_match_scope():
+    """Test that Factor correctly validates dimensions match scope."""
+    # Test 2D case
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    values_2d = np.ones((2, 3))
+    factor = cgm.Factor([a, b], values_2d)
+    assert factor.values.shape == (2, 3)
+    assert factor.shape == (2, 3)
+    
+    # Test 3D case
+    c = cgm.Variable('c', 4)
+    values_3d = np.ones((2, 3, 4))
+    factor = cgm.Factor([a, b, c], values_3d)
+    assert factor.values.shape == (2, 3, 4)
+    assert factor.shape == (2, 3, 4)
+
+def test_factor_incorrect_dimensions():
+    """Test that Factor raises error when dimensions don't match scope."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    
+    # Test wrong number of dimensions
+    values_1d = np.ones(2)
+    with pytest.raises(cgm.ScopeShapeMismatchError) as exc_info:
+        cgm.Factor([a, b], values_1d)
+    assert "Expected shape [2 3]" in str(exc_info.value)
+    
+    # Test wrong shape in first dimension
+    values_wrong_first = np.ones((3, 3))
+    with pytest.raises(cgm.ScopeShapeMismatchError) as exc_info:
+        cgm.Factor([a, b], values_wrong_first)
+    assert "Expected shape [2 3]" in str(exc_info.value)
+    
+    # Test wrong shape in second dimension
+    values_wrong_second = np.ones((2, 2))
+    with pytest.raises(cgm.ScopeShapeMismatchError) as exc_info:
+        cgm.Factor([a, b], values_wrong_second)
+    assert "Expected shape [2 3]" in str(exc_info.value)
+
+def test_factor_empty_scope():
+    """Test Factor creation with empty scope."""
+    factor = cgm.Factor.get_null()
+    assert factor.values.shape == ()  # 0-dimensional array
+    assert factor.shape == ()
+    assert isinstance(factor.values, np.ndarray)
+    npt.assert_allclose(factor.values, np.array(1.0))
+
+def test_factor_single_variable():
+    """Test Factor creation with single variable."""
+    a = cgm.Variable('a', 4)
+    values = np.ones(4)
+    factor = cgm.Factor([a], values)
+    assert factor.values.shape == (4,)
+    assert factor.shape == (4,)
+
+def test_factor_dimensions_after_operations():
+    """Test that Factor maintains correct dimensions after operations."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    c = cgm.Variable('c', 4)
+    
+    phi1 = cgm.Factor([a, b], np.ones((2, 3)))
+    phi2 = cgm.Factor([b, c], np.ones((3, 4)))
+    
+    # Test multiplication
+    result = phi1 * phi2
+    assert result.values.shape == (2, 3, 4)
+    assert result.shape == (2, 3, 4)
+    
+    # Test marginalization
+    margin = result.marginalize([b])
+    assert margin.values.shape == (2, 4)
+    assert margin.shape == (2, 4)
+    
+    # Test conditioning
+    cond = result.condition({b: 1})
+    assert cond.values.shape == (2, 4)
+    assert cond.shape == (2, 4)
+
+def test_factor_dimensions_scalar_initialization():
+    """Test Factor initialization with scalar values."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    
+    # Test integer initialization
+    factor = cgm.Factor([a, b], 5)
+    assert factor.values.shape == (2, 3)
+    assert factor.shape == (2, 3)
+    npt.assert_array_equal(factor.values, 5 * np.ones((2, 3)))
+    
+    # Test float initialization
+    factor = cgm.Factor([a, b], 1.5)
+    assert factor.values.shape == (2, 3)
+    assert factor.shape == (2, 3)
+    npt.assert_array_equal(factor.values, 1.5 * np.ones((2, 3)))
+
+def test_factor_dimensions_random_initialization():
+    """Test Factor initialization with random values."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    c = cgm.Variable('c', 4)
+    
+    # Test with fixed random seed for reproducibility
+    rng = np.random.default_rng(42)
+    factor = cgm.Factor([a, b, c], rng=rng)
+    assert factor.values.shape == (2, 3, 4)
+    assert factor.shape == (2, 3, 4)
+    
+    # Test that values are within expected range [0, 1]
+    assert np.all(factor.values >= 0)
+    assert np.all(factor.values <= 1)
+
+def test_factor_dimensions_with_permuted_scope():
+    """Test that Factor maintains correct dimensions when scope is permuted."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    c = cgm.Variable('c', 4)
+    
+    original = cgm.Factor([a, b, c], np.ones((2, 3, 4)))
+    
+    # Test various permutations
+    perms = [
+        (a, c, b),
+        (b, a, c),
+        (b, c, a),
+        (c, a, b),
+        (c, b, a)
+    ]
+    
+    for perm in perms:
+        permuted = original.permute_scope(perm)
+        expected_shape = tuple(v.num_states for v in perm)
+        assert permuted.values.shape == expected_shape
+        assert permuted.shape == expected_shape
+
+def test_factor_dimensions_arithmetic_broadcasting():
+    """Test that Factor arithmetic operations maintain correct dimensions with broadcasting."""
+    a = cgm.Variable('a', 2)
+    b = cgm.Variable('b', 3)
+    
+    phi1 = cgm.Factor([a], np.ones(2))
+    phi2 = cgm.Factor([b], np.ones(3))
+    
+    # Test multiplication with broadcasting
+    result = phi1 * phi2
+    assert result.values.shape == (2, 3)
+    assert result.shape == (2, 3)
+
+    # Test addition with broadcasting
+    result = phi1 + phi2
+    assert result.values.shape == (2, 3)
+    assert result.shape == (2, 3)
+
+    # Test scalar operations
+    result = phi1 * 2
+    assert result.values.shape == (2,)
+    assert result.shape == (2,)

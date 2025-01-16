@@ -113,6 +113,11 @@ class DAG_Node(HasParents[D], HasVariable, Generic[D]):
         return hash((self.variable, self.dag))
 
 
+@dataclasses.dataclass(frozen=True)
+class CPDSpec:
+    """Helper class to hold specification of a CPD created using | operator"""
+    child: 'CG_Node'
+    parents: list['CG_Node']
 
 @_utils.set_module('cgm')
 @dataclasses.dataclass(frozen=True)
@@ -126,14 +131,13 @@ class CG_Node(HasParents, HasVariable):
     states of the variable. 
 
     Example:
-        cg = cgm.CG()
-        mkNode = lambda name, num_states: cgm.CG_Node.from_params(name, num_states, cg)
-        A = mkNode('A', 2)
-        B = mkNode('B', 2)
-        C = mkNode('C', 2)
-        phi1 = cgm.CPD(A, [B])
-        phi2 = cgm.CPD(B, [C])
-        phi3 = cgm.CPD(C, [])
+        g = cgm.CG()
+        A = g.node('A', 2)
+        B = g.node('B', 2)
+        C = g.node('C', 2)
+        phi1 = g.P(A | B)
+        phi2 = g.P(B | C)
+        phi3 = g.P(C)
     """
     dag_node: DAG_Node['CG_Node']
     cg: 'CG'
@@ -189,6 +193,12 @@ class CG_Node(HasParents, HasVariable):
 
     def __hash__(self) -> int:
         return hash((self.variable, self.dag))
+
+    def __or__(self, parents) -> CPDSpec:
+        """Enable syntax like A | [B, C] for CPD creation"""
+        if isinstance(parents, CG_Node):
+            parents = [parents]
+        return CPDSpec(child=self, parents=parents)
 
 @_utils.set_module('cgm')
 class ScopeShapeMismatchError(Exception):
@@ -473,14 +483,14 @@ class CPD(Factor[CG_Node]):
 
     Example:
     ```
-      cg = cgm.CG()
-      mkNode = lambda name, num_states: cgm.CG_Node.from_params(name, num_states, cg)
-      A = mkNode('A', 2)
-      B = mkNode('B', 2)
-      C = mkNode('C', 2)
-      phi1 = cgm.CPD(A, [B])
-      phi2 = cgm.CPD(B, [C])
-      phi3 = cgm.CPD(C, [])
+      g = cgm.CG()
+      A = g.node('A', 2)
+      B = g.node('B', 2)
+      C = g.node('C', 2)
+      phi1 = g.P(A | B)
+      phi2 = g.P(B | C)
+      phi3 = g.P(C)
+      print(g)
     ```
 
     """
@@ -731,6 +741,10 @@ class CG:
         """Associate a CPD with a node."""
         self._cpd_dict[node] = cpd
 
+    def node(self, name: str, num_states: int) -> CG_Node:
+        """Create a new node and return it."""
+        return CG_Node.from_params(name, num_states, self)
+
     @property
     def nodes(self) -> list[CG_Node]:
         """Returns the list of CG_Nodes in the graph.
@@ -742,6 +756,26 @@ class CG:
 
     def __repr__(self):
         return repr(self.dag)
+
+
+    def P(self,  # pylint: disable=invalid-name
+          spec_or_node: CPDSpec | CG_Node,
+          values: np.ndarray | None = None,
+          **kwargs) -> CPD:
+        """Create a CPD using probability notation.
+        
+        Args:
+            spec_or_node: Either a CPDSpec from the | operator or a single node for priors
+            values: Optional values for the CPD
+            **kwargs: Additional arguments passed to CPD constructor
+        """
+        if isinstance(spec_or_node, CPDSpec):
+            # Handle A | [B, C] case
+            scope = [spec_or_node.child] + spec_or_node.parents
+            return CPD(scope=scope, child=spec_or_node.child, values=values, **kwargs)
+        else:
+            # Handle prior case - single node
+            return CPD(scope=[spec_or_node], child=spec_or_node, values=values, **kwargs)
 
 
 del _utils
