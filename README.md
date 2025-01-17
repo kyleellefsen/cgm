@@ -57,3 +57,17 @@ print(phi3.table)
 
 ## Documentation
 [kyleellefsen.github.io/cgm](https://kyleellefsen.github.io/cgm/)
+
+## Graph Visualization
+To visualize as you develop, inside your python environment (e.g. an 
+IPython console), run the following:
+
+```python
+import cgm
+import cgm.viz
+
+g1 = cgm.example_graphs.get_cg1()
+cgm.viz.show(g1)
+```
+
+![Example Causal Graph](docs/cgm_vscode_screenshot.png)

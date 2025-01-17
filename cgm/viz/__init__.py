@@ -46,8 +46,6 @@ _port = 5050
 _cgm_dir = pathlib.Path(cgm.__file__).parent
 _static_dir = _cgm_dir / "viz" / "static"
 assert _static_dir.exists(), f"Static files directory not found: {_static_dir}"
-print(f"Contents of _static_dir: {list(_static_dir.glob('*'))}") 
-
 
 # Mount static files directory
 _app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
