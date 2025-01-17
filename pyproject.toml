@@ -37,6 +37,9 @@ docs = [
         "sphinxcontrib.mermaid",
         "sphinx_tabs",
 ]
+viz = [
+    
+]
 
 [project.urls]
 Source = "https://github.com/kyleellefsen/cgm"
