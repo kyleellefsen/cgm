@@ -110,11 +110,11 @@ class GraphVisualization {
 
         // Create force simulation
         this.simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.id).distance(150)) // Increased distance
-            .force("charge", d3.forceManyBody().strength(-500))  // Reduced strength for more stable dragging
-            .force("collide", d3.forceCollide().radius(50))  // Prevent node overlap
-            .force("x", d3.forceX(this.width / 2).strength(0.05))  // Reduced center pull
-            .force("y", d3.forceY(this.height / 2).strength(0.05))  // Reduced center pull
+            .force("link", d3.forceLink().id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("collide", d3.forceCollide().radius(50))
+            .force("x", d3.forceX(this.width / 2).strength(0.05))
+            .force("y", d3.forceY(this.height / 2).strength(0.05))
             .on("tick", () => this.tick());
             
         // Add containers for different elements
@@ -158,15 +158,17 @@ class GraphVisualization {
         d.fx = null;
         d.fy = null;
     }
-    
+
     // Handle node selection and conditioning
     handleNodeClick(event, d) {
-        // Remove previous selection
-        this.nodesGroup.selectAll(".node").classed("selected", false);
+        // Remove selection class from all nodes
+        this.nodesGroup.selectAll(".node")
+            .classed("selected", false);
         
-        // Update selection
+        // Add selection class to clicked node
         const node = d3.select(event.currentTarget);
         node.classed("selected", true);
+        
         this.selectedNode = d;
         
         // Update panel
@@ -324,7 +326,12 @@ class GraphVisualization {
             
         // Merge and update existing nodes
         const nodeUpdate = nodeEnter.merge(nodes);
-        nodeUpdate.attr("class", d => `node ${d.type || 'effect'}`);
+        nodeUpdate.attr("class", d => {
+            const baseClass = `node ${d.type || 'effect'}`;
+            return this.selectedNode && d.id === this.selectedNode.id
+                ? `${baseClass} selected`
+                : baseClass;
+        });
         
         // Update existing ellipses
         nodeUpdate.select("ellipse")

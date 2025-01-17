@@ -12,7 +12,7 @@ body {
 }
 
 .graph-container {
-    flex: 7;
+    flex: 1 1 70%;
     min-width: 200px;
 }
 
@@ -22,6 +22,7 @@ body {
     cursor: col-resize;
     transition: background-color 0.2s;
     user-select: none;
+    flex: 0 0 auto;
 }
 
 .resizer:hover, .resizer.resizing {
@@ -29,7 +30,7 @@ body {
 }
 
 .panel-container {
-    flex: 3;
+    flex: 1 1 30%;
     min-width: 200px;
     background: #f9fafb;
     padding: 1rem;
@@ -41,7 +42,7 @@ body {
     stroke-width: 3px;
     fill: white;
     cursor: pointer;
-    transition: stroke-width 0.2s;
+    transition: all 0.2s ease;
 }
 
 .node:hover ellipse {
@@ -69,8 +70,11 @@ body {
     stroke-width: 3px;
 }
 
+/* New styles for selected node */
 .node.selected ellipse {
     stroke-width: 4px;
+    fill: #f0f9ff;
+    filter: drop-shadow(0 0 5px rgb(0, 95, 248));
 }
 
 .link {
@@ -125,10 +129,14 @@ body {
 
 .cpd-content {
     overflow-x: auto;
+    display: flex;
 }
 
 .cpd-content table {
     white-space: nowrap;
+    width: auto;
+    margin-right: auto;
+    flex-shrink: 0;
 }
 
 .panel-header {
