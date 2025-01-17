@@ -1,8 +1,89 @@
 class GraphVisualization {
+    setupResizer() {
+        const resizer = document.getElementById('resizer');
+        const graphContainer = document.querySelector('.graph-container');
+        const panelContainer = document.querySelector('.panel-container');
+        
+        let isResizing = false;
+        let startX;
+        let startGraphWidth;
+        let startPanelWidth;
+        
+        // Handle resize start
+        const startResize = (e) => {
+            isResizing = true;
+            resizer.classList.add('resizing');
+            startX = e.pageX;
+            startGraphWidth = graphContainer.offsetWidth;
+            startPanelWidth = panelContainer.offsetWidth;
+            document.documentElement.style.cursor = 'col-resize';
+        };
+        
+        // Handle resize
+        const resize = (e) => {
+            if (!isResizing) return;
+            
+            const dx = e.pageX - startX;
+            
+            // Calculate new widths
+            const newGraphWidth = startGraphWidth + dx;
+            const newPanelWidth = startPanelWidth - dx;
+            
+            // Apply minimum widths
+            if (newGraphWidth >= 200 && newPanelWidth >= 200) {
+                graphContainer.style.flex = 'none';
+                panelContainer.style.flex = 'none';
+                graphContainer.style.width = `${newGraphWidth}px`;
+                panelContainer.style.width = `${newPanelWidth}px`;
+                
+                // Update visualization width
+                this.width = this.calculateWidth();
+                this.svg.attr("width", this.width);
+                
+                // Update force simulation center
+                this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
+                this.simulation.alpha(0.3).restart();
+            }
+        };
+        
+        // Handle resize end
+        const stopResize = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            resizer.classList.remove('resizing');
+            document.documentElement.style.cursor = '';
+        };
+        
+        // Add event listeners
+        resizer.addEventListener('mousedown', startResize);
+        document.addEventListener('mousemove', resize);
+        document.addEventListener('mouseup', stopResize);
+        
+        // Clean up on window resize
+        window.addEventListener('resize', () => {
+            this.width = this.calculateWidth();
+            this.height = window.innerHeight;
+            this.svg.attr("width", this.width)
+                .attr("height", this.height);
+            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05))
+                .force("y", d3.forceY(this.height / 2).strength(0.05));
+            this.simulation.alpha(0.3).restart();
+        });
+    }
+    
+    calculateWidth() {
+        return document.querySelector('.graph-container').offsetWidth;
+    }
+
     constructor() {
+        // Set up resizer
+        this.setupResizer();
+        
         // Set up constants
-        this.width = window.innerWidth * 0.7;  // Adjust for panel
+        this.width = this.calculateWidth();
         this.height = window.innerHeight;
+        this.nodeHeight = 30;  // Fixed height for nodes
+        this.textPadding = 20; // Padding on each side of text
         
         // Initialize simulation state
         this.simulationNodes = new Map(); // Store simulation nodes by ID
@@ -10,7 +91,6 @@ class GraphVisualization {
         this.selectedNode = null;
         
         // Set up SVG
-        // Select the SVG element inside the graph container
         this.svg = d3.select(".graph-container").select("svg")
             .attr("width", this.width)
             .attr("height", this.height);
@@ -30,13 +110,14 @@ class GraphVisualization {
 
         // Create force simulation
         this.simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.id).distance(100))
-            .force("charge", d3.forceManyBody().strength(-800))
-            .force("x", d3.forceX(this.width / 2))
-            .force("y", d3.forceY(this.height / 2))
+            .force("link", d3.forceLink().id(d => d.id).distance(150)) // Increased distance
+            .force("charge", d3.forceManyBody().strength(-500))  // Reduced strength for more stable dragging
+            .force("collide", d3.forceCollide().radius(50))  // Prevent node overlap
+            .force("x", d3.forceX(this.width / 2).strength(0.05))  // Reduced center pull
+            .force("y", d3.forceY(this.height / 2).strength(0.05))  // Reduced center pull
             .on("tick", () => this.tick());
             
-        // Add containers
+        // Add containers for different elements
         this.linksGroup = this.svg.append("g");
         this.nodesGroup = this.svg.append("g");
         this.labelsGroup = this.svg.append("g");
@@ -45,9 +126,20 @@ class GraphVisualization {
         this.startUpdateLoop();
     }
     
+    // Calculate node width based on text
+    calculateNodeWidth(text) {
+        // Create temporary text element to measure width
+        const temp = this.svg.append("text")
+            .attr("class", "node-label")
+            .text(text);
+        const width = temp.node().getBBox().width;
+        temp.remove();
+        return width + this.textPadding * 2; // Add padding on both sides
+    }
+    
     // Drag handlers
     dragstarted(event, d) {
-        if (!event.active) this.simulation.alphaTarget(0.1);
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();  // Increased alpha target
         d.fx = d.x;
         d.fy = d.y;
     }
@@ -55,15 +147,19 @@ class GraphVisualization {
     dragged(event, d) {
         d.fx = event.x;
         d.fy = event.y;
+        // Heat up the simulation during drag
+        this.simulation.alpha(0.3).restart();
     }
 
     dragended(event, d) {
         if (!event.active) this.simulation.alphaTarget(0);
+        // Optional: keep the node fixed where it was dropped
+        // Comment these out if you want nodes to keep their positions after drag
         d.fx = null;
         d.fy = null;
     }
     
-    // Handle node selection
+    // Handle node selection and conditioning
     handleNodeClick(event, d) {
         // Remove previous selection
         this.nodesGroup.selectAll(".node").classed("selected", false);
@@ -75,6 +171,14 @@ class GraphVisualization {
         
         // Update panel
         this.updatePanel(d);
+        
+        // Toggle conditioned state if applicable
+        if (d.canBeConditioned) {
+            const ellipse = node.select("ellipse");
+            const isConditioned = ellipse.classed("conditioned");
+            ellipse.classed("conditioned", !isConditioned);
+            d.isConditioned = !isConditioned;
+        }
     }
     
     // Update panel with CPD table
@@ -97,36 +201,60 @@ class GraphVisualization {
     
     // Update the visual elements based on simulation state
     tick() {
+        // Update links
         this.linksGroup.selectAll(".link")
             .attr("x1", d => d.source.x)
             .attr("y1", d => d.source.y)
             .attr("x2", d => d.target.x)
             .attr("y2", d => d.target.y);
 
+        // Update node groups
         this.nodesGroup.selectAll(".node")
-            .attr("cx", d => d.x)
-            .attr("cy", d => d.y);
+            .attr("transform", d => `translate(${d.x},${d.y})`);
 
-        this.labelsGroup.selectAll(".node-label")
-            .attr("x", d => d.x)
-            .attr("y", d => d.y);
-
+        // Update labels
         this.labelsGroup.selectAll(".node-states")
             .attr("x", d => d.x)
-            .attr("y", d => d.y + 25);
+            .attr("y", d => d.y + this.nodeHeight);
+    }
+    
+    // Check if graph structure changed
+    hasStructureChanged(newData) {
+        if (this.simulationNodes.size !== newData.nodes.length) return true;
+        if (this.simulationLinks.size !== newData.links.length) return true;
+        
+        for (const node of newData.nodes) {
+            if (!this.simulationNodes.has(node.id)) return true;
+        }
+        
+        for (const link of newData.links) {
+            const linkId = `${link.source}-${link.target}`;
+            if (!this.simulationLinks.has(linkId)) return true;
+        }
+        
+        return false;
     }
     
     // Update data without disturbing simulation
     updateData(newData) {
-        // Check if graph structure has actually changed
         const structureChanged = this.hasStructureChanged(newData);
         
         if (structureChanged) {
             // Update simulation nodes while preserving positions
             newData.nodes.forEach(node => {
                 if (!this.simulationNodes.has(node.id)) {
+                    // Calculate node width based on text
+                    const nodeWidth = this.calculateNodeWidth(node.id);
+                    
                     // New node: add to simulation
-                    const simNode = {...node, x: this.width/2, y: this.height/2};
+                    const simNode = {
+                        ...node,
+                        x: this.width/2,
+                        y: this.height/2,
+                        type: node.type || 'effect',  // Default to effect if no type specified
+                        width: nodeWidth,
+                        height: this.nodeHeight
+                    };
                     this.simulationNodes.set(node.id, simNode);
                 }
             });
@@ -163,28 +291,6 @@ class GraphVisualization {
         this.updateVisuals(newData);
     }
     
-    // Check if graph structure changed
-    hasStructureChanged(newData) {
-        // Check if number of nodes changed
-        if (this.simulationNodes.size !== newData.nodes.length) return true;
-        
-        // Check if number of links changed
-        if (this.simulationLinks.size !== newData.links.length) return true;
-        
-        // Check if any nodes changed
-        for (const node of newData.nodes) {
-            if (!this.simulationNodes.has(node.id)) return true;
-        }
-        
-        // Check if any links changed
-        for (const link of newData.links) {
-            const linkId = `${link.source}-${link.target}`;
-            if (!this.simulationLinks.has(linkId)) return true;
-        }
-        
-        return false;
-    }
-    
     // Update visual elements without touching simulation
     updateVisuals(data) {
         const drag = d3.drag()
@@ -199,13 +305,35 @@ class GraphVisualization {
             
         nodes.exit().remove();
         
-        nodes.enter()
-            .append("circle")
-            .attr("class", "node")
-            .attr("r", 15)
+        // Enter new nodes
+        const nodeEnter = nodes.enter()
+            .append("g")
+            .attr("class", d => `node ${d.type || 'effect'}`)
             .call(drag)
-            .on("click", (e,d) => this.handleNodeClick(e,d))
-            .merge(nodes);
+            .on("click", (e,d) => this.handleNodeClick(e,d));
+
+        // Add ellipse to each node
+        nodeEnter.append("ellipse")
+            .attr("rx", d => d.width / 2)
+            .attr("ry", d => d.height / 2);
+            
+        // Add text label within the node
+        nodeEnter.append("text")
+            .attr("class", "node-label")
+            .text(d => d.id);
+            
+        // Merge and update existing nodes
+        const nodeUpdate = nodeEnter.merge(nodes);
+        nodeUpdate.attr("class", d => `node ${d.type || 'effect'}`);
+        
+        // Update existing ellipses
+        nodeUpdate.select("ellipse")
+            .attr("rx", d => d.width / 2)
+            .attr("ry", d => d.height / 2);
+            
+        // Update existing labels
+        nodeUpdate.select("text")
+            .text(d => d.id);
             
         // Update links
         const links = this.linksGroup
@@ -219,19 +347,6 @@ class GraphVisualization {
             .append("line")
             .attr("class", "link")
             .merge(links);
-            
-        // Update labels
-        const labels = this.labelsGroup
-            .selectAll(".node-label")
-            .data(Array.from(this.simulationNodes.values()), d => d.id);
-            
-        labels.exit().remove();
-        
-        labels.enter()
-            .append("text")
-            .attr("class", "node-label")
-            .merge(labels)
-            .text(d => d.id);
             
         // Update state labels
         const states = this.labelsGroup

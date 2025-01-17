@@ -8,35 +8,69 @@ body {
     display: flex;
     width: 100vw;
     height: 100vh;
+    position: relative;
 }
 
 .graph-container {
     flex: 7;
+    min-width: 200px;
+}
+
+.resizer {
+    width: 8px;
+    background-color: #e5e7eb;
+    cursor: col-resize;
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.resizer:hover, .resizer.resizing {
+    background-color: #cbd5e1;
 }
 
 .panel-container {
     flex: 3;
-    border-left: 1px solid #e5e7eb;
+    min-width: 200px;
     background: #f9fafb;
     padding: 1rem;
     overflow-y: auto;
 }
 
 /* Graph elements */
-.node {
-    fill: #69b3a2;
-    stroke: #fff;
-    stroke-width: 2px;
+.node ellipse {
+    stroke-width: 3px;
+    fill: white;
     cursor: pointer;
-    transition: fill 0.2s;
+    transition: stroke-width 0.2s;
 }
 
-.node:hover {
-    fill: #4b8f7d;
+.node:hover ellipse {
+    stroke-width: 6px;
 }
 
-.node.selected {
-    fill: #2c5282;
+.cause ellipse {
+    stroke: #A8C07A;
+}
+
+.effect ellipse {
+    stroke: #E06666;
+}
+
+.irr ellipse {
+    stroke: #CFE2F3;
+}
+
+.background ellipse {
+    stroke: #F6B26B;
+}
+
+.node ellipse.conditioned {
+    fill: none;
+    stroke-width: 3px;
+}
+
+.node.selected ellipse {
+    stroke-width: 4px;
 }
 
 .link {
@@ -52,7 +86,7 @@ body {
     text-anchor: middle;
     dominant-baseline: central;
     pointer-events: none;
-    fill: white;
+    fill: #333;
 }
 
 .node-states {
