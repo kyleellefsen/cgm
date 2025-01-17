@@ -60,7 +60,7 @@ def test_cpd_creation_using_cg():
     assert phi3.child == C
     assert phi3.parents == frozenset()
     assert C.parents == frozenset()
-    assert np.sum(phi3.values) == 1.0  # Should be normalized
+    np.testing.assert_almost_equal(np.sum(phi3.values), 1.0) # Should be normalized
     # Test that CPDs are properly registered with the CG
     assert g.get_cpd(A) == phi1
     assert g.get_cpd(B) == phi2
