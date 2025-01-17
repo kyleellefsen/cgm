@@ -159,7 +159,7 @@ class CG_Node(HasParents, HasVariable):
 
     @property
     def ancestors(self) -> frozenset['CG_Node']:
-         return frozenset(CG_Node(dag_node=a, cg=self.cg) for a in self.dag_node.ancestors)
+        return frozenset(CG_Node(dag_node=a, cg=self.cg) for a in self.dag_node.ancestors)
 
     @property
     def variable(self) -> Variable:
@@ -664,15 +664,9 @@ class CPD(Factor[CG_Node]):
     @property
     def table(self) -> _format.FactorTableView:
         """Access the CPD's table representation."""
-        class CPDTableView(_format.FactorTableView):
-            def __init__(self, cpd: 'CPD'):
-                super().__init__(cpd)
-                self.cpd = cpd  # Store as CPD type specifically
 
-            def __str__(self) -> str:
-                return _format.format_cpd_table(self.cpd)  # Use cpd instead of factor
 
-        return CPDTableView(self)
+        return _format.CPDTableView(self)
 
 @_utils.set_module('cgm')
 class DAG(Generic[D]):

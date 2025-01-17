@@ -1,5 +1,6 @@
 """Helper functions for formatting Factor and CPD tables for human-readable output."""
 from typing import TYPE_CHECKING
+import itertools
 if TYPE_CHECKING:
     from .core import Factor, CPD
 
@@ -151,25 +152,8 @@ def _format_factor_table(factor: 'Factor', row=None, col=None, fixed=None) -> st
     return "\n".join(lines)
 
 
-class FactorTableView:
-    """Helper class to provide both property and method access to table formatting.
-    
-    This allows both:
-        print(phi.table)  # Default view
-        print(phi.table(row='A', col='B', fixed={'C': 1}))  # Custom view
-    """
-    def __init__(self, factor: 'Factor'):
-        self.factor = factor
 
-    def __call__(self, row=None, col=None, fixed=None) -> str:
-        """Method access for custom table views."""
-        return _format_factor_table(self.factor, row, col, fixed)
-
-    def __str__(self) -> str:
-        """Property access for default table view."""
-        return _format_factor_table(self.factor)
-
-def format_cpd_table(cpd: 'CPD') -> str:
+def _format_cpd_table(cpd: 'CPD') -> str:
     """Format a CPD's values as a human-readable table following Koller & Friedman notation.
     
     The format follows Figure 3.4 in "Probabilistic Graphical Models":
@@ -203,10 +187,10 @@ def format_cpd_table(cpd: 'CPD') -> str:
     """
     child = cpd.child
     parents = sorted(list(cpd.parents))
-    
+
     # Find child dimension in the values array
     child_dim = cpd.scope.index(child)
-    
+
     # Constants for formatting
     PROB_WIDTH = 6  # Width for probability values
     COLUMN_WIDTH = 7  # Total column width including spacing
@@ -240,9 +224,8 @@ def format_cpd_table(cpd: 'CPD') -> str:
 
         # Generate all parent state combinations to find max width needed
         parent_states = [range(p.num_states) for p in parents]
-        from itertools import product
         max_label_width = len(header_str)
-        for parent_vals in product(*parent_states):
+        for parent_vals in itertools.product(*parent_states):
             row_label = ", ".join(f"{p.name}{_int_to_superscript(v)}"
                                 for p, v in zip(parents, parent_vals))
             max_label_width = max(max_label_width, len(row_label))
@@ -262,7 +245,7 @@ def format_cpd_table(cpd: 'CPD') -> str:
         lines.append("─" * total_width)
 
         # Generate rows for each parent configuration
-        for parent_vals in product(*parent_states):
+        for parent_vals in itertools.product(*parent_states):
             row_label = ", ".join(f"{p.name}{_int_to_superscript(v)}"
                                 for p, v in zip(parents, parent_vals))
             row = f"{row_label:{label_width}} |"
@@ -282,3 +265,84 @@ def format_cpd_table(cpd: 'CPD') -> str:
             lines.append(row)
 
         return "\n".join(lines)
+
+
+def _format_cpd_as_html(cpd: 'CPD') -> str:
+    """Format a CPD as an HTML table.
+
+    Args:
+        cpd: A CPD object containing child, parents, and values attributes
+
+    Returns:
+        An HTML string representing the CPD table.
+    """
+    child = cpd.child
+    parents = sorted(list(cpd.parents))
+
+    # Generate all parent state combinations
+    parent_states = [range(p.num_states) for p in parents]
+    index_tuples = list(itertools.product(*parent_states))
+
+    # Start building the HTML table
+    html = '<table class="cpd-table">\n'
+
+    # Add table header
+    html += "  <thead>\n    <tr>\n"
+    for parent in parents:
+        html += f"      <th>{parent.name}</th>\n"
+    for i in range(child.num_states):
+        html += f"      <th>{child.name}<sup>{i}</sup></th>\n"
+    html += "    </tr>\n  </thead>\n"
+
+    # Add table body
+    html += "  <tbody>\n"
+    for idx in index_tuples:
+        html += "    <tr>\n"
+        # Add parent states to the row
+        for i, parent in enumerate(parents):
+            html += f"      <td>{parent.name}<sup>{idx[i]}</td>\n"
+
+        # Get probabilities for this parent configuration
+        selector = [idx[parents.index(p)] if p in parents else slice(None) for p in cpd.scope]
+        probs = cpd.values[tuple(selector)]
+
+        # Add probabilities to the row
+        for j in range(child.num_states):
+            html += f"      <td>{probs[j]:.3f}</td>\n"
+        html += "    </tr>\n"
+    html += "  </tbody>\n</table>"
+
+    return html
+
+
+class FactorTableView:
+    """Helper class to provide both property and method access to table formatting.
+    
+    This allows both:
+        print(phi.table)  # Default view
+        print(phi.table(row='A', col='B', fixed={'C': 1}))  # Custom view
+    """
+    def __init__(self, factor: 'Factor'):
+        self.factor = factor
+
+    def __call__(self, row=None, col=None, fixed=None) -> str:
+        """Method access for custom table views."""
+        return _format_factor_table(self.factor, row, col, fixed)
+
+    def __str__(self) -> str:
+        """Property access for default table view."""
+        return _format_factor_table(self.factor)
+
+class CPDTableView(FactorTableView):
+    """Helper class to provide both property and method access to CPD table formatting.
+
+    """
+    def __init__(self, cpd: 'CPD'):
+        super().__init__(cpd)
+        self.cpd = cpd  # Store as CPD type specifically
+
+    def __str__(self) -> str:
+        return _format_cpd_table(self.cpd)  # Use cpd instead of factor
+
+    def html(self) -> str:
+        return _format_cpd_as_html(self.cpd)

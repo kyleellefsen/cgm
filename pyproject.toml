@@ -38,7 +38,9 @@ docs = [
         "sphinx_tabs",
 ]
 viz = [
-    
+       "fastapi",
+       "uvicorn",
+       "pydantic",
 ]
 
 [project.urls]
