@@ -8,15 +8,19 @@ import numpy as np
 import numpy.testing as npt
 import cgm
 logging.basicConfig(level=logging.INFO)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
 
-def test_elimination1():
+
+def test_elimination1(visualize=False):
     logging.debug("Running test_elimination1()")
     cg = cgm.example_graphs.get_cg1()
     A, B, C, D, E, F = cg.nodes
     elimination_order = [F, E, D, C, B, A]
-    dve = cgm.inference.variable_elimination.DagVariableElimination(cg)
-    factors = dve.variable_elimination(elimination_order)
-    npt.assert_almost_equal(factors[0].values, 1, decimal=5)
+    remaining_factors = cgm.inference.eliminate(cg, elimination_order)
+    npt.assert_almost_equal(next(iter(remaining_factors)).values.sum(), 1, decimal=5)
+    # if visualize:
+    #     from cgm.viz import show  # pylint: disable=import-outside-toplevel
+    #     show(cg)
 
 
 def test_elimination2():
@@ -24,8 +28,8 @@ def test_elimination2():
     cg = cgm.example_graphs.get_cg2()
     rain, season, slippery, sprinkler, wet = cg.nodes
     elimination_order = [season, rain, sprinkler, wet]
-    dve = cgm.inference.variable_elimination.DagVariableElimination(cg)
-    slippery_factor = dve.variable_elimination(elimination_order)[0] 
+    remaining_factors = cgm.inference.eliminate(cg, elimination_order)
+    slippery_factor = next(iter(remaining_factors))
     logging.debug(f"Remaining factor: {slippery_factor}")
     logging.debug(f"Probabilities of slippery: {slippery_factor.values}")
     npt.assert_almost_equal(slippery_factor.values.sum(), 1, decimal=5)
@@ -36,14 +40,13 @@ def generate_clustergraph1():
     Algorithm, Example Cluster Graph (12 minute mark)."""
     rng = np.random.default_rng(30)
     rngs = [np.random.default_rng(seed) for seed in rng.integers(low=0, high=np.iinfo(np.int64).max, size=7)]
-    cg = cgm.CG()
-    mkNode = lambda name, n: cgm.CG_Node.from_params(name, n, cg)
-    A = mkNode('A', 3)
-    B = mkNode('B', 3)
-    C = mkNode('C', 3)
-    D = mkNode('D', 3)
-    E = mkNode('E', 3)
-    F = mkNode('F', 3)
+    g = cgm.CG()
+    A = g.node('A', 3)
+    B = g.node('B', 3)
+    C = g.node('C', 3)
+    D = g.node('D', 3)
+    E = g.node('E', 3)
+    F = g.node('F', 3)
     phi1 = cgm.Factor([A, B, C], rng=rngs[0])
     phi2 = cgm.Factor([B, C], rng=rngs[1])
     phi3 = cgm.Factor([B, D], rng=rngs[2])
@@ -70,13 +73,12 @@ def generate_clustergraph_chain():
     - Correctness, Message Passing In Trees (2 minute mark)."""
     rng = np.random.default_rng(30)
     rngs = [np.random.default_rng(seed) for seed in rng.integers(low=0, high=np.iinfo(np.int64).max, size=5)]
-    cg = cgm.CG()
-    mkNode = lambda name, n: cgm.CG_Node.from_params(name, n, cg)
-    A = mkNode('A', 3)
-    B = mkNode('B', 3)
-    C = mkNode('C', 3)
-    D = mkNode('D', 3)
-    E = mkNode('E', 3)
+    g = cgm.CG()
+    A = g.node('A', 3)
+    B = g.node('B', 3)
+    C = g.node('C', 3)
+    D = g.node('D', 3)
+    E = g.node('E', 3)
     phi1 = cgm.CPD([A, B], rng=rngs[0])
     phi2 = cgm.CPD([B, C], rng=rngs[1])
     phi3 = cgm.CPD([D, C], rng=rngs[2])
@@ -139,7 +141,7 @@ def test_forward_sample():
     logging.debug('Testing forward_sample()')
     cg = cgm.example_graphs.get_cg2()
     rain, season, slippery, sprinkler, wet = cg.nodes
-    sampler = cgm.inference.forward_sampling.ForwardSampler(cg, 30)
+    sampler = cgm.inference.ForwardSampler(cg, 30)
     num_samples = 1000
     samples = sampler.get_n_samples(num_samples)
     marginal = sampler.get_sampled_marginal({season})
@@ -155,7 +157,7 @@ def test_forward_sample_no_mutation():
     cg = cgm.example_graphs.get_cg2()
     rain, season, slippery, sprinkler, wet = cg.nodes
     parent_list_before = [n.parents for n in cg.nodes]
-    sampler = cgm.inference.forward_sampling.ForwardSampler(cg, 30)
+    sampler = cgm.inference.ForwardSampler(cg, 30)
     num_samples = 10
     samples = sampler.get_n_samples(num_samples)
     parent_list_after = [n.parents for n in cg.nodes]

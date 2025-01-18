@@ -1,3 +1,3 @@
-from .belief_propagation import *
-from .variable_elimination import *
-from .forward_sampling import *
+from .exact.belief_propagation import *
+from .exact.elimination import *
+from .approximate.sampling import *
