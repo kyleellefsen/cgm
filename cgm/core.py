@@ -582,7 +582,7 @@ class CPD(Factor[CG_Node]):
         normalized_values = (self / self.marginalize([self.child])).values
         self._values = normalized_values
         margin = self.marginalize([self.child]).values
-        np.testing.assert_allclose(margin, np.ones_like(margin))
+        np.testing.assert_allclose(margin, np.ones_like(margin), rtol=1e-10)
 
     def normalize(self):
         msg = "CPD has no method 'normalize', since it is already normalized."
