@@ -536,22 +536,22 @@ class CPD(Factor[CG_Node]):
               
         """
 
-        # The scope of the child is stored in the DAG, in a dict for that node
-        super().__init__(scope, values, rng)
-        # Set child and parents
+        super().__init__(scope, values, rng=rng)
         if child is None:
             child = scope[0]
-        self._child = child
-        self._parents = frozenset(s for s in scope if s != child)
+        object.__setattr__(self, '_child', child)
+        parents = frozenset(v for v in scope if v != child)
+        object.__setattr__(self, '_parents', parents)
+        
         if not virtual:
             # Add node to DAG *before* checking cycles
             dag: DAG[CG_Node] = child.dag_node.dag
             dag.add_node(child.dag_node, parents=self._parents, replace=True)            
             # Register the CPD with the CG
             child.cg.set_cpd(child, self)
-
-        # Now check cycles and normalize
-        self._assert_nocycles()
+            # Only check cycles for non-virtual CPDs
+            self._assert_nocycles()
+        
         self._normalize()
 
     @property
@@ -787,21 +787,25 @@ class CG:
     def P(self,  # pylint: disable=invalid-name
           spec_or_node: CPDSpec | CG_Node,
           values: np.ndarray | None = None,
+          virtual: bool = False,
           **kwargs) -> CPD:
         """Create a CPD using probability notation.
         
         Args:
             spec_or_node: Either a CPDSpec from the | operator or a single node for priors
             values: Optional values for the CPD
+            virtual: If True, create a virtual CPD that doesn't modify graph structure
             **kwargs: Additional arguments passed to CPD constructor
         """
         if isinstance(spec_or_node, CPDSpec):
             # Handle A | [B, C] case
             scope = [spec_or_node.child] + spec_or_node.parents
-            return CPD(scope=scope, child=spec_or_node.child, values=values, **kwargs)
+            return CPD(scope=scope, child=spec_or_node.child, values=values, 
+                      virtual=virtual, **kwargs)
         else:
             # Handle prior case - single node
-            return CPD(scope=[spec_or_node], child=spec_or_node, values=values, **kwargs)
+            return CPD(scope=[spec_or_node], child=spec_or_node, values=values,
+                      virtual=virtual, **kwargs)
 
 
 del _utils

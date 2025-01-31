@@ -31,7 +31,7 @@ The visualization system follows these core principles:
 
 The system consists of three main components:
 
-1. **Flask Server**
+1. **FastAPI Server**
    - Single server instance running on a fixed port
    - Two routes:
      - `/` - Serves the HTML/D3.js visualization page
@@ -101,7 +101,7 @@ cgm.viz.show(g2)  # Updates existing visualization
 
 ## Dependencies
 
-- Flask for server
+- FastAPI for server
 - D3.js (loaded from CDN) for visualization
 - Standard Python libraries only
 """
