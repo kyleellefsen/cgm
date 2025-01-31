@@ -76,8 +76,7 @@ class GraphVisualization {
     }
 
     constructor() {
-        // Set up resizer
-        this.setupResizer();
+        console.log("=== GRAPH VISUALIZATION INITIALIZING ===");
         
         // Set up constants
         this.width = this.calculateWidth();
@@ -90,8 +89,9 @@ class GraphVisualization {
         this.simulationLinks = new Map(); // Store simulation links by ID
         this.selectedNode = null;
         
-        // Set up SVG
-        this.svg = d3.select(".graph-container").select("svg")
+        // Set up SVG - clear existing content first
+        d3.select(".graph-container").selectAll("svg").remove();
+        this.svg = d3.select(".graph-container").append("svg")
             .attr("width", this.width)
             .attr("height", this.height);
             
@@ -122,8 +122,15 @@ class GraphVisualization {
         this.nodesGroup = this.svg.append("g");
         this.labelsGroup = this.svg.append("g");
         
+        // Set up resizer
+        this.setupResizer();
+        
+        console.log("=== GRAPH VISUALIZATION INITIALIZED ===");
+        
         // Start update loop
         this.startUpdateLoop();
+        
+        this.conditioned_vars = {};
     }
     
     // Calculate node width based on text
@@ -139,48 +146,58 @@ class GraphVisualization {
     
     // Drag handlers
     dragstarted(event, d) {
-        if (!event.active) this.simulation.alphaTarget(0.3).restart();  // Increased alpha target
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
+        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
     }
 
     dragged(event, d) {
         d.fx = event.x;
         d.fy = event.y;
-        // Heat up the simulation during drag
-        this.simulation.alpha(0.3).restart();
+        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
     }
 
     dragended(event, d) {
         if (!event.active) this.simulation.alphaTarget(0);
-        // Optional: keep the node fixed where it was dropped
-        // Comment these out if you want nodes to keep their positions after drag
-        d.fx = null;
-        d.fy = null;
+        // Keep nodes fixed where they are dropped
+        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
     }
 
     // Handle node selection and conditioning
     handleNodeClick(event, d) {
+        event.stopPropagation();
+        
+        console.log(`Node ${d.id} clicked:`, {
+            currentState: d.conditioned_state,
+            willTransitionTo: d.conditioned_state === 0 ? -1 : 0
+        });
+        
         // Remove selection class from all nodes
         this.nodesGroup.selectAll(".node")
             .classed("selected", false);
         
         // Add selection class to clicked node
-        const node = d3.select(event.currentTarget);
-        node.classed("selected", true);
-        
+        d3.select(event.currentTarget).classed("selected", true);
         this.selectedNode = d;
         
         // Update panel
         this.updatePanel(d);
         
-        // Toggle conditioned state if applicable
-        if (d.canBeConditioned) {
-            const ellipse = node.select("ellipse");
-            const isConditioned = ellipse.classed("conditioned");
-            ellipse.classed("conditioned", !isConditioned);
-            d.isConditioned = !isConditioned;
-        }
+        // Toggle node conditioning
+        const newState = d.conditioned_state === 0 ? -1 : 0;
+        console.log(`Sending condition request for node ${d.id}:`, {
+            newState,
+            url: `/condition/${d.id}/${newState}`
+        });
+        
+        fetch(`/condition/${d.id}/${newState}`, {
+            method: 'POST'
+        }).then(() => {
+            console.log(`Condition request completed for node ${d.id}, fetching new state`);
+            // Refresh graph state after conditioning
+            this.fetchAndUpdateState();
+        });
     }
     
     // Update panel with CPD table
@@ -239,141 +256,252 @@ class GraphVisualization {
     
     // Update data without disturbing simulation
     updateData(newData) {
-        const structureChanged = this.hasStructureChanged(newData);
+        console.log("=== UPDATE DATA START ===");
+        console.log("Raw data from server:", JSON.stringify(newData, null, 2));
         
-        if (structureChanged) {
-            // Update simulation nodes while preserving positions
-            newData.nodes.forEach(node => {
-                if (!this.simulationNodes.has(node.id)) {
-                    // Calculate node width based on text
-                    const nodeWidth = this.calculateNodeWidth(node.id);
-                    
-                    // New node: add to simulation
-                    const simNode = {
-                        ...node,
-                        x: this.width/2,
-                        y: this.height/2,
-                        type: node.type || 'effect',  // Default to effect if no type specified
-                        width: nodeWidth,
-                        height: this.nodeHeight
-                    };
-                    this.simulationNodes.set(node.id, simNode);
-                }
+        // Update existing nodes and add new ones
+        newData.nodes.forEach(node => {
+            const existingNode = this.simulationNodes.get(node.id);
+            const nodeWidth = this.calculateNodeWidth(node.id);
+            
+            console.log(`Processing node ${node.id}:`, {
+                isExisting: !!existingNode,
+                incomingState: node.conditioned_state,
+                currentState: existingNode?.conditioned_state
             });
             
-            // Remove old nodes
-            for (const [id, node] of this.simulationNodes.entries()) {
-                if (!newData.nodes.find(n => n.id === id)) {
-                    this.simulationNodes.delete(id);
-                }
-            }
-            
-            // Update simulation links
-            this.simulationLinks = new Map(
-                newData.links.map(link => [
-                    `${link.source}-${link.target}`,
-                    {
-                        ...link,
-                        source: this.simulationNodes.get(link.source),
-                        target: this.simulationNodes.get(link.target)
+            if (existingNode) {
+                // Update existing node while preserving position and state
+                const beforeUpdate = {...existingNode};
+                Object.assign(existingNode, {
+                    ...node,
+                    width: nodeWidth,
+                    height: this.nodeHeight,
+                    x: existingNode.x,
+                    y: existingNode.y,
+                    fx: existingNode.fx,
+                    fy: existingNode.fy,
+                    vx: existingNode.vx,
+                    vy: existingNode.vy
+                });
+                console.log(`Updated existing node ${node.id}:`, {
+                    before: {
+                        conditioned_state: beforeUpdate.conditioned_state,
+                        x: beforeUpdate.x,
+                        y: beforeUpdate.y
+                    },
+                    after: {
+                        conditioned_state: existingNode.conditioned_state,
+                        x: existingNode.x,
+                        y: existingNode.y
                     }
-                ])
-            );
-            
-            // Update simulation with preserved nodes
-            this.simulation
-                .nodes(Array.from(this.simulationNodes.values()))
-                .force("link").links(Array.from(this.simulationLinks.values()));
-                
-            // Gentle restart
-            this.simulation.alpha(0.1).restart();
+                });
+            } else {
+                // Add new node
+                const newNode = {
+                    ...node,
+                    x: this.width/2 + (Math.random() - 0.5) * 100,
+                    y: this.height/2 + (Math.random() - 0.5) * 100,
+                    fx: null,
+                    fy: null,
+                    vx: 0,
+                    vy: 0,
+                    type: node.type || 'effect',
+                    width: nodeWidth,
+                    height: this.nodeHeight
+                };
+                this.simulationNodes.set(node.id, newNode);
+                console.log(`Added new node ${node.id}:`, {
+                    conditioned_state: newNode.conditioned_state,
+                    position: {x: newNode.x, y: newNode.y}
+                });
+            }
+        });
+        
+        // Remove nodes that no longer exist
+        for (const [id, node] of this.simulationNodes.entries()) {
+            if (!newData.nodes.find(n => n.id === id)) {
+                this.simulationNodes.delete(id);
+            }
         }
         
+        // Update links
+        this.simulationLinks.clear();
+        newData.links.forEach(link => {
+            const sourceNode = this.simulationNodes.get(link.source);
+            const targetNode = this.simulationNodes.get(link.target);
+            if (sourceNode && targetNode) {
+                const linkId = `${link.source}-${link.target}`;
+                this.simulationLinks.set(linkId, {
+                    ...link,
+                    source: sourceNode,
+                    target: targetNode
+                });
+            }
+        });
+        
+        // Update simulation with current data
+        const nodes = Array.from(this.simulationNodes.values());
+        const links = Array.from(this.simulationLinks.values());
+        
+        this.simulation
+            .nodes(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("collide", d3.forceCollide().radius(50))
+            .force("x", d3.forceX(this.width / 2).strength(0.05))
+            .force("y", d3.forceY(this.height / 2).strength(0.05))
+            .alpha(0.3)
+            .restart();
+        
         // Update visual elements
-        this.updateVisuals(newData);
+        this.updateVisuals();
+        
+        console.log("=== UPDATE DATA END ===");
     }
     
     // Update visual elements without touching simulation
-    updateVisuals(data) {
-        const drag = d3.drag()
-            .on("start", (e,d) => this.dragstarted(e,d))
-            .on("drag", (e,d) => this.dragged(e,d))
-            .on("end", (e,d) => this.dragended(e,d));
+    updateVisuals() {
+        console.log("=== UPDATE VISUALS START ===");
+        
+        // Get current nodes with their data
+        const currentNodes = Array.from(this.simulationNodes.values());
+        console.log("Current nodes before visual update:", currentNodes.map(d => ({
+            id: d.id,
+            conditioned_state: d.conditioned_state,
+            isConditioned: d.conditioned_state >= 0
+        })));
             
         // Update nodes
         const nodes = this.nodesGroup
-            .selectAll(".node")
-            .data(Array.from(this.simulationNodes.values()), d => d.id);
+            .selectAll("g.node")
+            .data(currentNodes, d => d.id);
             
+        // Remove old nodes
         nodes.exit().remove();
         
         // Enter new nodes
         const nodeEnter = nodes.enter()
             .append("g")
-            .attr("class", d => `node ${d.type || 'effect'}`)
-            .call(drag)
+            .attr("class", d => `node ${d.type || 'effect'}`);
+            
+        // Add basic elements to new nodes
+        nodeEnter
+            .call(d3.drag()
+                .on("start", (e,d) => this.dragstarted(e,d))
+                .on("drag", (e,d) => this.dragged(e,d))
+                .on("end", (e,d) => this.dragended(e,d)))
             .on("click", (e,d) => this.handleNodeClick(e,d));
-
-        // Add ellipse to each node
+            
+        // Add ellipse first (background)
         nodeEnter.append("ellipse")
             .attr("rx", d => d.width / 2)
             .attr("ry", d => d.height / 2);
             
-        // Add text label within the node
+        // Add conditioned circle on top
+        nodeEnter.append("circle")
+            .attr("class", "conditioned")
+            .attr("r", d => Math.min(d.width, d.height) * 0.6)
+            .style("stroke", "#2563eb")
+            .style("stroke-width", "4px")
+            .style("fill", "none")
+            .style("opacity", d => {
+                const isConditioned = d.conditioned_state >= 0;
+                console.log(`Setting initial circle opacity for node ${d.id}:`, {
+                    conditioned_state: d.conditioned_state,
+                    isConditioned,
+                    opacity: isConditioned ? 1 : 0,
+                    element: 'circle.conditioned'
+                });
+                return isConditioned ? 1 : 0;
+            })
+            .style("display", "block");
+            
+        // Add text label on top
         nodeEnter.append("text")
             .attr("class", "node-label")
             .text(d => d.id);
             
-        // Merge and update existing nodes
-        const nodeUpdate = nodeEnter.merge(nodes);
-        nodeUpdate.attr("class", d => {
-            const baseClass = `node ${d.type || 'effect'}`;
-            return this.selectedNode && d.id === this.selectedNode.id
-                ? `${baseClass} selected`
-                : baseClass;
+        // Update all nodes (both new and existing)
+        const allNodes = nodes.merge(nodeEnter);
+        
+        // Update node elements
+        allNodes.each(function(d) {
+            const node = d3.select(this);
+            
+            // Update ellipse
+            node.select("ellipse")
+                .attr("rx", d.width / 2)
+                .attr("ry", d.height / 2);
+                
+            // Update conditioned circle
+            const circle = node.select("circle.conditioned");
+            const isConditioned = d.conditioned_state >= 0;
+            
+            console.log(`Updating circle for node ${d.id}:`, {
+                conditioned_state: d.conditioned_state,
+                isConditioned,
+                newOpacity: isConditioned ? 1 : 0,
+                currentStyle: {
+                    opacity: circle.style("opacity"),
+                    display: circle.style("display"),
+                    stroke: circle.style("stroke"),
+                    'stroke-width': circle.style("stroke-width")
+                }
+            });
+            
+            circle
+                .attr("r", Math.min(d.width, d.height) * 0.6)
+                .style("opacity", isConditioned ? 1 : 0)
+                .style("stroke", "#2563eb")
+                .style("stroke-width", "4px")
+                .style("fill", "none");
+                
+            // Update text
+            node.select("text.node-label")
+                .text(d.id);
         });
         
-        // Update existing ellipses
-        nodeUpdate.select("ellipse")
-            .attr("rx", d => d.width / 2)
-            .attr("ry", d => d.height / 2);
-            
-        // Update existing labels
-        nodeUpdate.select("text")
-            .text(d => d.id);
-            
         // Update links
         const links = this.linksGroup
-            .selectAll(".link")
+            .selectAll("line.link")
             .data(Array.from(this.simulationLinks.values()), 
                 d => `${d.source.id}-${d.target.id}`);
             
         links.exit().remove();
         
-        links.enter()
+        const linkEnter = links.enter()
             .append("line")
-            .attr("class", "link")
-            .merge(links);
+            .attr("class", "link");
             
+        // Update all links
+        links.merge(linkEnter);
+        
         // Update state labels
         const states = this.labelsGroup
-            .selectAll(".node-states")
-            .data(Array.from(this.simulationNodes.values()), d => d.id);
+            .selectAll("text.node-states")
+            .data(currentNodes, d => d.id);
             
         states.exit().remove();
         
-        states.enter()
+        const stateEnter = states.enter()
             .append("text")
-            .attr("class", "node-states")
-            .merge(states)
+            .attr("class", "node-states");
+            
+        states.merge(stateEnter)
             .text(d => `states: ${d.states}`);
+            
+        console.log("=== UPDATE VISUALS END ===");
     }
     
     async startUpdateLoop() {
         while (true) {
             try {
+                console.log("=== FETCH START ===");
                 const response = await fetch('/state');
                 const data = await response.json();
+                console.log("Raw response from /state:", JSON.stringify(data, null, 2));
+                console.log("=== FETCH END ===");
                 this.updateData(data);
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -381,9 +509,51 @@ class GraphVisualization {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
+    
+    fetchAndUpdateState() {
+        fetch('/state')
+            .then(response => response.json())
+            .then(data => this.updateData(data));
+    }
+
+    highlightConditionedRows() {
+        const table = document.querySelector('.cpd-table');
+        if (!table) return;
+        
+        const conditionedVars = JSON.parse(table.dataset.conditioned || "{}");
+        
+        table.querySelectorAll('tr').forEach(row => {
+            const matches = Array.from(row.cells).every(cell => {
+                const varName = cell.getAttribute('data-variable');
+                const value = parseInt(cell.getAttribute('data-value'));
+                return !varName || !(varName in conditionedVars) || 
+                       conditionedVars[varName] === value;
+            });
+            row.classList.toggle('active', matches);
+        });
+    }
 }
 
-// Initialize visualization when document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    const viz = new GraphVisualization();
+// Create instance when the script loads
+console.log("=== SCRIPT LOADED ===");
+window.addEventListener('DOMContentLoaded', () => {
+    console.log("=== DOM LOADED ===");
+    try {
+        window.graphViz = new GraphVisualization();
+    } catch (error) {
+        console.error("=== ERROR INITIALIZING GRAPH VISUALIZATION ===");
+        console.error(error);
+    }
+});
+
+// Add error handler for uncaught errors
+window.addEventListener('error', (event) => {
+    console.error("=== UNCAUGHT ERROR ===");
+    console.error(event.error);
+});
+
+// Add error handler for unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+    console.error("=== UNHANDLED PROMISE REJECTION ===");
+    console.error(event.reason);
 });

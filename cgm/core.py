@@ -1,6 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 The core module contains the basic building blocks of a Causal Graphical Model.
+
+Typical usage:
+
+```python
+    g = cgm.CG()
+    A = g.node('A', 2)
+    B = g.node('B', 2)
+    C = g.node('C', 2)
+    phi1 = g.P(A | B) # if no values are provided, the CPD is random
+    phi2 = g.P(B | C, values=np.array([[0.1, 0.9], [0.3, 0.7]]))
+    theta = g.P(C | B, virtual=True) # virtual nodes are not added to the graph
+```
+
 """
 from typing import List, Sequence, TypeVar, Generic, Protocol, FrozenSet, Optional
 import functools
@@ -8,6 +21,7 @@ import collections
 from collections import OrderedDict
 import dataclasses
 import numpy as np
+import numpy.typing as npt
 from . import _utils
 from . import _format
 
@@ -699,7 +713,7 @@ class DAG(Generic[D]):
         node_to_add = node.dag_node if hasattr(node, 'dag_node') else node
         # Convert parent CG_Nodes to their dag_nodes
         parents_frozen = frozenset(
-            p.dag_node if hasattr(p, 'dag_node') else p 
+            p.dag_node if hasattr(p, 'dag_node') else p
             for p in parents
         )
         # Clear cached properties
@@ -768,7 +782,19 @@ class CG:
         self._cpd_dict[node] = cpd
 
     def node(self, name: str, num_states: int) -> CG_Node:
-        """Create a new node and return it."""
+        """Create a new node and return it.
+        
+        Args:
+            name: Name of the node. Must be unique in the graph.
+            num_states: Number of states for this node.
+            
+        Raises:
+            ValueError: If a node with the same name already exists.
+        """
+        # Check if node with this name already exists
+        existing_names = {node.name for node in self.nodes}
+        if name in existing_names:
+            raise ValueError(f"Node with name '{name}' already exists in the graph. Node names must be unique.")
         return CG_Node.from_params(name, num_states, self)
 
     @property
@@ -776,7 +802,8 @@ class CG:
         """Returns the list of CG_Nodes in the graph.
         
         While the underlying DAG stores DAG_Node objects, this property reconstructs 
-        and returns the original CG_Node objects.
+        and returns the original CG_Node objects. The list is guaranteed to be
+        sorted by name, since the underlying DAG is sorted by name.
         """
         return [CG_Node(dag_node=node, cg=self) for node in self.dag.nodes]
 
@@ -809,3 +836,124 @@ class CG:
 
 
 del _utils
+
+
+@dataclasses.dataclass(frozen=True)
+class GraphSchema:
+    """Schema defining the structure of data for a Causal Graph (Bayesian Network)
+    
+    This class creates a fixed mapping between network variables and array 
+    indices, enabling efficient data access without dictionary lookups.
+    The schema is computed once when loading the dataset and reused for all
+    operations.
+
+    Each variable in the schema has a fixed number of states, numbered from 
+    0 to num_states-1. This allows -1 to be safely used as a sentinel value 
+    for missing/unset data.
+    """
+    # Maps each variable name to its position in the data arrays
+    var_to_idx: dict[str, int]
+    # Maps each variable name to its number of possible states
+    var_to_states: dict[str, int]
+    # Total number of variables in the schema
+    num_vars: int
+
+    @classmethod
+    def from_network(cls, network: CG) -> 'GraphSchema':
+        """Creates a schema from a network, establishing a fixed variable order."""
+        # Sort nodes for deterministic ordering
+        nodes = network.nodes # nodes are already sorted by their unique name
+        var_to_idx = {node.name: idx for idx, node in enumerate(nodes)}
+        var_to_states = {node.name: node.num_states for node in nodes}
+        return cls(
+            var_to_idx=var_to_idx,
+            var_to_states=var_to_states,
+            num_vars=len(nodes)
+        )
+
+    def validate_states(self, data: npt.NDArray[np.number]) -> None:
+        """Validates that all values in data are within valid state ranges.
+        
+        Valid states are non-negative integers from 0 to num_states-1.
+        The value -1 is allowed as a sentinel for missing/unset data.
+        """
+        for var_name, num_states in self.var_to_states.items():
+            idx = self.var_to_idx[var_name]
+            if not np.all((data[idx] < num_states) | (data[idx] == -1)):
+                raise ValueError(
+                    f"Invalid states for variable {var_name}. "
+                    f"Must be < {num_states}"
+                )
+
+
+@dataclasses.dataclass(frozen=True)
+class GraphState:
+    """Graph state for a Causal Graph (Bayesian Network)
+    
+    Since the graph is immutable, to condition on a sample, we create a new
+    GraphState which contains the information about the current state.
+
+    Each variable in the state can take on values from 0 to num_states-1,
+    with -1 representing a missing/unset value. The mask array indicates 
+    which variables have been set (True) vs unset (False).
+    """
+    network: CG
+    schema: GraphSchema
+    # Store conditions as a single array and mask for efficiency
+    # Array contains values, mask indicates which variables are conditioned
+    # We use -1 as a sentinel value for missing/unset values
+    _values: npt.NDArray[np.number]
+    _mask: npt.NDArray[np.bool_]
+
+    @property
+    def values(self) -> npt.NDArray[np.number]:
+        """Get the current values array. -1 indicates missing/unset values."""
+        return self._values
+
+    @property
+    def mask(self) -> npt.NDArray[np.bool_]:
+        """Get the current mask array. True indicates set values."""
+        return self._mask
+
+    @classmethod
+    def create(cls, network: CG) -> 'GraphState':
+        """Creates a new GraphState with no conditions."""
+        schema = GraphSchema.from_network(network)
+        return cls(
+            network=network,
+            schema=schema,
+            _values=np.full(schema.num_vars, -1, dtype=np.float_),
+            _mask=np.zeros(schema.num_vars, dtype=np.bool_)
+        )
+
+    def condition_on_sample(
+        self,
+        sample: npt.NDArray[np.number]
+    ) -> 'GraphState':
+        """Creates a new state by conditioning on a sample.
+        
+        Args:
+            sample: Array of shape (num_vars,) containing observed values.
+                   Values should be integers from 0 to num_states-1.
+                   Use -1 for missing/unset values.
+                   
+        Returns:
+            New GraphState with additional conditions from sample.
+        """
+        # Create mask for valid (non-missing) values in sample
+        sample_mask = sample != -1
+
+        # Combine existing conditions with new sample
+        new_mask = self._mask | sample_mask
+        new_values = np.where(
+            sample_mask,
+            sample,
+            self._values
+        )
+
+        return GraphState(
+            network=self.network,
+            schema=self.schema,
+            _values=new_values,
+            _mask=new_mask
+        )

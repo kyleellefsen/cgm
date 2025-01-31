@@ -1,14 +1,69 @@
 """Variational inference for CGM"""
 
 from functools import reduce
-
+from dataclasses import dataclass, field
+import time
 import numpy as np
 import cgm
 import cgm.viz
 
+@dataclass
+class Distribution:
+    """Distribution state for visualization"""
+    values: list[float]
+    parents: list[str]
+    type: str = "categorical"
 
-# Define a two node cgm, z for the latent variable and x for the observed variable
-# This follows the example from Figure 2.1 of "Active Inference" by Friston et al.
+@dataclass
+class Message:
+    """Message passing state for visualization"""
+    from_node: str
+    to_node: str
+    type: str  # 'gradient' or 'belief'
+    values: list[float]
+
+@dataclass
+class VisualizationNode:
+    """Node state for visualization"""
+    id: str
+    name: str
+    type: str  # 'observed' or 'latent'
+    numStates: int
+    distributions: dict[str, Distribution]
+
+@dataclass
+class PerformanceMetrics:
+    """Performance monitoring metrics"""
+    iteration_time: float = 0.0
+    num_numerical_warnings: int = 0
+    max_gradient_norm: float = 0.0
+    min_probability: float = 1.0
+
+@dataclass
+class OptimizationStep:
+    """Single optimization step state"""
+    step: int
+    elbo: float
+    kl: float
+    performance: PerformanceMetrics
+
+@dataclass
+class OptimizationState:
+    """Optimization state for visualization"""
+    step: int = 0
+    elbo: float = 0
+    klDivergence: float = 0
+    learningRate: float = 0.1
+    history: list[OptimizationStep] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)
+    performance: PerformanceMetrics = field(default_factory=PerformanceMetrics)
+
+@dataclass
+class SystemState:
+    """Overall system state for visualization"""
+    nodes: list[VisualizationNode]
+    optimization: OptimizationState
+
 
 def show_variable_names(table):
     """Replace symbolic values in probability table with human-readable strings."""
@@ -39,7 +94,6 @@ def create_graph():
 
     prior = g.P(Z, np.array([0.1, 0.9])) # .1 for frog, .9 for apple
     likelihood = g.P(X | Z, np.array([[0.19, 0.81], [0.99, 0.01]]).T)
-    cgm.viz.show(g)
     return g
 
 def compute_log_evidence_and_kl_divergence_and_elbo(
@@ -54,9 +108,12 @@ def compute_log_evidence_and_kl_divergence_and_elbo(
     p_theta, p_Z = X.cpd, Z.cpd
     if p_theta is None or p_Z is None:
         raise ValueError("p_theta or p_Z is None")
-    elbo = 0
+
+    # Compute ELBO using importance sampling
     q_phi_x = q_phi.condition({X: x_i})
     z_samples, rng = q_phi_x.sample(num_samples, rng)
+
+    # Compute components with numerical stability
     likelihoods = np.array([p_theta.condition({Z: z_samples[k]}).values[x_i] for k in range(num_samples)])
     priors = np.array([p_Z.values[z_samples[k]] for k in range(num_samples)])
     q_phi_values = np.array([q_phi_x.values[z_samples[k]] for k in range(num_samples)])
@@ -74,8 +131,11 @@ def compute_log_evidence_and_kl_divergence_and_elbo(
 
     return log_evidence, kl_q_p, elbo, rng
 
-
 def main():
+    # Initialize visualization server
+    cgm.viz.start_server()
+
+    # Create graph
     g = create_graph()
     X, Z = g.nodes
     p_theta = X.cpd  # The likelihood. The generative model. 𝑃_theta(X | Z)
@@ -86,60 +146,109 @@ def main():
     q_phi_values = np.array([[0.5, 0.5], [0.5, 0.5]])  # [X⁰, X¹] rows, [Z⁰, Z¹] columns
     q_phi = g.P(Z | X, q_phi_values, virtual=True)
 
-    # Example: Observe X=1 (jump)
-    x_i = 1
-    rng = np.random.default_rng(31)
-    print("\nObservation: X=jump")
-    num_samples = 10000
-    log_evidence, kl_q_p, elbo, rng = compute_log_evidence_and_kl_divergence_and_elbo(x_i, g, q_phi, rng, num_samples)
-    # print(f"ELBO: {elbo:.3f}")
-    # print(f"KL Divergence: {kl_q_p:.3f}")
-    # print(f"Log Evidence: {log_evidence:.3f}")
-    # print(f"KL Divergence + ELBO: {kl_q_p + elbo:.3f}")
-    print(f"Surprise: {-log_evidence:.3f}")
+    # Create visualization state with all nodes including q_phi
+    graph_state = cgm.viz.GraphState(
+        nodes=[
+            {"id": Z.name, "states": Z.num_states, "cpd": p_Z.table.html()},
+            {"id": X.name, "states": X.num_states, "cpd": p_X_given_Z.table.html()},
+            {"id": "q_phi", "states": 2, "cpd": q_phi.table.html()}
+        ],
+        links=[
+            {"source": Z.name, "target": X.name},
+            {"source": X.name, "target": "q_phi"}
+        ]
+    )
+    cgm.viz._current_graph = graph_state
 
-
-    # print(f"Variational free energy: {-elbo:.3f}")
-
-    # Let's improve q_phi through gradient descent
-    learning_rate = 0.1
-    num_iterations = 100
+    # Show initial graph
+    cgm.viz.show(g, open_browser=True)
 
     # Optimization loop
+    num_iterations = 100
+    learning_rate = 0.01  # Reduced learning rate for stability
+
     for iteration in range(num_iterations):
-        # Compute gradient (difference between current q and exact posterior)
-        p_theta_z = compute_exact_posterior(g).condition({X: x_i})
-        current_q = q_phi.condition({X: x_i}).values
-        gradient = current_q - p_theta_z.values
+        # Compute exact posterior for comparison
+        p_theta = p_X_given_Z
+        p_Z = p_Z
+        if p_theta is not None and p_Z is not None:
+            # Compute joint distribution P(X,Z)
+            joint_values = p_theta.values * p_Z.values.reshape(-1, 1)
+            # Add small epsilon to avoid log(0)
+            joint_values = np.clip(joint_values, 1e-10, 1.0)
+            
+            # Compute evidence P(X)
+            evidence = joint_values.sum(axis=0)
+            evidence = np.clip(evidence, 1e-10, 1.0)
+            
+            # Compute true posterior P(Z|X)
+            posterior = joint_values / evidence
+            posterior = np.clip(posterior, 1e-10, 1.0)
 
-        # Update q_phi with gradient descent
-        q_phi_values[x_i] -= learning_rate * gradient
+            # KL divergence between q_phi and true posterior
+            kl_div = 0.0
+            for x in range(2):  # For each value of X
+                q = np.clip(q_phi.values[:, x], 1e-10, 1.0)  # q(Z|X=x)
+                p = np.clip(posterior[:, x], 1e-10, 1.0)      # p(Z|X=x)
+                kl_div += 0.5 * np.sum(q * np.log(q / p))  # Weight each X value equally
 
-        # Project to probability simplex
-        q_phi_values[x_i] = np.clip(q_phi_values[x_i], 0, 1)
-        q_phi_values[x_i] /= q_phi_values[x_i].sum()
+            # ELBO = E_q[log p(x,z)] - E_q[log q(z)]
+            q_values = np.clip(q_phi.values, 1e-10, 1.0)
+            elbo = (
+                np.sum(q_values * np.log(joint_values)) -
+                np.sum(q_values * np.log(q_values))
+            )
 
-        # Update CPD and recompute metrics
-        q_phi = g.P(Z | X, q_phi_values, virtual=True)
-        log_evidence, kl_q_p, elbo, rng = compute_log_evidence_and_kl_divergence_and_elbo(
-            x_i, g, q_phi, rng, num_samples
-        )
+            print(f"Iteration {iteration}:")
+            print(f"  KL(q||p) = {kl_div:.4f}")
+            print(f"  ELBO = {elbo:.4f}")
+            print(f"  q(Z|X=jump) = [{q_phi.values[0,0]:.3f}, {q_phi.values[1,0]:.3f}]")
+            print(f"  q(Z|X=doesn't jump) = [{q_phi.values[0,1]:.3f}, {q_phi.values[1,1]:.3f}]")
 
-        print(f"Iter {iteration}: KL={kl_q_p:.4f}, ELBO={elbo:.4f}")
+            # Gradient descent on q_phi
+            # Here we're using the exact gradient, but in practice we'd use samples
+            grad = np.zeros_like(q_phi.values)
+            for x in range(2):  # For each value of X
+                for z in range(2):  # For each value of Z
+                    # grad = d/dq [ q*log(p) - q*log(q) ]
+                    # Add small epsilon to avoid log(0)
+                    q_val = np.clip(q_phi.values[z,x], 1e-10, 1.0)
+                    joint_val = np.clip(joint_values[z,x], 1e-10, 1.0)
+                    grad[z,x] = np.log(joint_val) - np.log(q_val) - 1
 
-        # Only print the relevant X=1 row
-        print("Exact posterior for X=1:")
-        print(compute_exact_posterior(g).condition({X: x_i}).table)
-        print("Variational approximation for X=1:")
-        print(q_phi.condition({X: x_i}).table)
+            # Update q_phi with gradient ascent
+            new_values = q_phi.values + learning_rate * grad
+            # Clip values to ensure they stay positive
+            new_values = np.clip(new_values, 1e-10, 1.0)
+            # Normalize to ensure valid probabilities
+            new_values = new_values / new_values.sum(axis=0, keepdims=True)
+            q_phi = g.P(Z | X, values=new_values, virtual=True)
 
-        print(compute_exact_posterior(g).table)
-        print(q_phi.table)
+            # Update visualization state with new q_phi
+            graph_state = cgm.viz.GraphState(
+                nodes=[
+                    {"id": Z.name, "states": Z.num_states, "cpd": p_Z.table.html()},
+                    {"id": X.name, "states": X.num_states, "cpd": p_X_given_Z.table.html()},
+                    {"id": "q_phi", "states": 2, "cpd": q_phi.table.html()}
+                ],
+                links=[
+                    {"source": Z.name, "target": X.name},
+                    {"source": X.name, "target": "q_phi"}
+                ]
+            )
+            cgm.viz._current_graph = graph_state
 
+            # Show updated graph (without opening new browser window)
+            cgm.viz.show(g, open_browser=False)
+
+            # Add small delay to allow visualization to update
+            time.sleep(0.1)
+
+    # After optimization loop
+    cgm.viz.stop_server()
 
 # if __name__ == "__main__":
-#     graph = create_graph()
-#     compute_exact_posterior(graph)
+#     main()
     
 
 

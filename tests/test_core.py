@@ -802,3 +802,132 @@ def test_factor_dimensions_arithmetic_broadcasting():
     result = phi1 * 2
     assert result.values.shape == (2,)
     assert result.shape == (2,)
+
+def test_initial_state_creation():
+    """Test creating a fresh GraphState with no conditions"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    
+    # Should have all variables from CG2
+    expected_vars = {n.name for n in cg.nodes}
+    assert set(state.schema.var_to_idx.keys()) == expected_vars
+    
+    # No variables should be conditioned initially
+    assert np.all(state.mask == False)
+    assert np.all(state.values == -1)  # Using -1 as unset sentinel
+
+def test_condition_on_valid_sample():
+    """Test conditioning with a valid complete sample"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    
+    # Create sample data with all variables observed
+    sample = np.full(state.schema.num_vars, -1)
+    sample[state.schema.var_to_idx["rain"]] = 1  # Rain=1
+    sample[state.schema.var_to_idx["wet"]] = 0    # Wet=0
+    
+    new_state = state.condition_on_sample(sample)
+    
+    # Verify mask updates
+    rain_idx = state.schema.var_to_idx["rain"]
+    wet_idx = state.schema.var_to_idx["wet"]
+    assert new_state.mask[rain_idx] == True
+    assert new_state.mask[wet_idx] == True
+    
+    # Verify values
+    assert new_state.values[rain_idx] == 1
+    assert new_state.values[wet_idx] == 0
+    
+    # Other variables should remain unset
+    other_vars = set(state.schema.var_to_idx.values()) - {rain_idx, wet_idx}
+    assert np.all(new_state.mask[list(other_vars)] == False)
+    assert np.all(new_state.values[list(other_vars)] == -1)
+
+def test_condition_with_partial_nan():
+    """Test conditioning with partial observations"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    schema = state.schema
+    
+    # Partial sample with only Season observed
+    sample = np.full(schema.num_vars, -1)
+    sample[schema.var_to_idx["season"]] = 0
+    
+    new_state = state.condition_on_sample(sample)
+    
+    # Only season should be conditioned
+    assert new_state.mask[schema.var_to_idx["season"]] == True
+    assert np.sum(new_state.mask) == 1  # Only one variable conditioned
+
+def test_immutability():
+    """Verify original state remains unchanged after conditioning"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    
+    sample = np.full(state.schema.num_vars, -1)
+    sample[state.schema.var_to_idx["sprinkler"]] = 1
+    
+    _ = state.condition_on_sample(sample)  # Create new state
+    
+    # Original state should remain pristine
+    assert np.all(state.mask == False)
+    assert np.all(state.values == -1)
+
+def test_schema_validation():
+    """Test schema validation catches invalid states"""
+    cg = cgm.example_graphs.get_cg2()
+    schema = cgm.GraphSchema.from_network(cg)
+    
+    # Create invalid data where Rain=3 (max 2 states)
+    invalid_data = np.zeros(schema.num_vars)
+    invalid_data[schema.var_to_idx["rain"]] = 3
+    
+    with pytest.raises(ValueError) as excinfo:
+        schema.validate_states(invalid_data)
+    assert "rain" in str(excinfo.value)
+    assert "Must be < 2" in str(excinfo.value)
+
+def test_multiple_conditioning():
+    """Test sequential conditioning accumulates state"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    schema = state.schema
+    
+    # First condition on Season
+    sample1 = np.full(schema.num_vars, -1)
+    sample1[schema.var_to_idx["season"]] = 1
+    state1 = state.condition_on_sample(sample1)
+    
+    # Then condition on Wet
+    sample2 = np.full(schema.num_vars, -1)
+    sample2[schema.var_to_idx["wet"]] = 0
+    state2 = state1.condition_on_sample(sample2)
+    
+    # Verify combined state
+    assert state2.mask[schema.var_to_idx["season"]] == True
+    assert state2.mask[schema.var_to_idx["wet"]] == True
+    assert state2.values[schema.var_to_idx["season"]] == 1
+    assert state2.values[schema.var_to_idx["wet"]] == 0
+
+def test_edge_cases():
+    """Test edge cases like all-NaN samples"""
+    cg = cgm.example_graphs.get_cg2()
+    state = cgm.GraphState.create(cg)
+    
+    # All missing values should return identical state
+    sample = np.full(state.schema.num_vars, -1)
+    new_state = state.condition_on_sample(sample)
+    assert new_state is not state  # Should be new object
+    assert np.all(new_state.mask == state.mask)
+    assert np.all(new_state.values == state.values)
+    
+    # Test multiple conditionings on same variable
+    sample1 = np.full(state.schema.num_vars, -1)
+    sample1[state.schema.var_to_idx["rain"]] = 0
+    state1 = state.condition_on_sample(sample1)
+    
+    sample2 = np.full(state.schema.num_vars, -1)
+    sample2[state.schema.var_to_idx["rain"]] = 1
+    state2 = state1.condition_on_sample(sample2)
+    
+    assert state2.values[state.schema.var_to_idx["rain"]] == 1

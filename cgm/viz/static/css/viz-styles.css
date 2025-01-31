@@ -43,6 +43,7 @@ body {
     fill: white;
     cursor: pointer;
     transition: all 0.2s ease;
+    z-index: 1;
 }
 
 .node:hover ellipse {
@@ -65,9 +66,23 @@ body {
     stroke: #F6B26B;
 }
 
-.node ellipse.conditioned {
+/* Conditioned circle styles */
+.node circle.conditioned {
     fill: none;
-    stroke-width: 3px;
+    stroke: #2563eb;
+    stroke-width: 4px;
+    pointer-events: none;
+    z-index: 10;
+    position: relative;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Ensure the circle is visible when display is set to block */
+.node circle.conditioned[style*="display: block"] {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
 /* New styles for selected node */
@@ -145,4 +160,44 @@ body {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #e5e7eb;
+}
+
+.cpd-table tr {
+    transition: opacity 0.2s;
+}
+
+.cpd-table tr:not(.active) {
+    opacity: 0.4;
+}
+
+.cpd-table tr.active {
+    opacity: 1;
+    background-color: #f0f9ff;
+}
+
+/* Make sure the conditioned circle is on top */
+.node text {
+    z-index: 5;
+    position: relative;
+}
+
+/* Ensure proper z-index stacking */
+.node ellipse {
+    z-index: 1;
+    position: relative;
+}
+
+.node circle.conditioned {
+    z-index: 10;
+    position: relative;
+}
+
+.node text {
+    z-index: 5;
+    position: relative;
+}
+
+/* Ensure proper stacking order */
+.node {
+    position: relative;
 }
