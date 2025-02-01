@@ -81,6 +81,22 @@ body {
     background: var(--condition-fill-color) !important;
 }
 
+/* Add border around the entire selected column */
+.cpd-table th[data-variable].state-active {
+    border-top: 2px solid var(--condition-border-color) !important;
+    border-left: 2px solid var(--condition-border-color) !important;
+    border-right: 2px solid var(--condition-border-color) !important;
+}
+
+.cpd-table td[data-variable].state-active {
+    border-left: 2px solid var(--condition-border-color) !important;
+    border-right: 2px solid var(--condition-border-color) !important;
+}
+
+.cpd-table tr:last-child td[data-variable].state-active {
+    border-bottom: 2px solid var(--condition-border-color) !important;
+}
+
 /* New styles for selected node */
 .node.selected ellipse {
     stroke-width: 4px;
