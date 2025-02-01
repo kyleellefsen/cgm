@@ -3,7 +3,6 @@
 <head>
     <title>CGM Graph Visualization</title>
     <script>
-        console.log("=== HTML START ===");
         window.addEventListener('load', () => {
             console.log("=== WINDOW LOADED ===");
         });
@@ -27,19 +26,8 @@
             </div>
         </div>
     </div>
-    <script>
-        console.log("=== BEFORE TEST SCRIPT ===");
-    </script>
-    <script src="/static/js/test.js"></script>
-    <script>
-        console.log("=== AFTER TEST SCRIPT ===");
-    </script>
-    <script>
-        console.log("=== BEFORE MAIN SCRIPT ===");
-    </script>
     <script src="/static/js/viz-graph.js"></script>
     <script>
-        console.log("=== INITIALIZING VISUALIZATION ===");
         // Initialize visualization
         window.graphViz = new GraphVisualization();
     </script>

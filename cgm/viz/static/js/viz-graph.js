@@ -76,7 +76,6 @@ class GraphVisualization {
     }
 
     constructor() {
-        console.log("=== GRAPH VISUALIZATION INITIALIZING ===");
         
         // Set up constants
         this.width = this.calculateWidth();
@@ -125,7 +124,6 @@ class GraphVisualization {
         // Set up resizer
         this.setupResizer();
         
-        console.log("=== GRAPH VISUALIZATION INITIALIZED ===");
         
         // Start update loop
         this.startUpdateLoop();
@@ -266,19 +264,10 @@ class GraphVisualization {
     
     // Update data without disturbing simulation
     updateData(newData) {
-        console.log("=== UPDATE DATA START ===");
-        console.log("Raw data from server:", JSON.stringify(newData, null, 2));
-        
         // Update existing nodes and add new ones
         newData.nodes.forEach(node => {
             const existingNode = this.simulationNodes.get(node.id);
             const nodeWidth = this.calculateNodeWidth(node.id);
-            
-            console.log(`Processing node ${node.id}:`, {
-                isExisting: !!existingNode,
-                incomingState: node.conditioned_state,
-                currentState: existingNode?.conditioned_state
-            });
             
             if (existingNode) {
                 // Update existing node while preserving position and state
@@ -294,18 +283,6 @@ class GraphVisualization {
                     vx: existingNode.vx,
                     vy: existingNode.vy
                 });
-                console.log(`Updated existing node ${node.id}:`, {
-                    before: {
-                        conditioned_state: beforeUpdate.conditioned_state,
-                        x: beforeUpdate.x,
-                        y: beforeUpdate.y
-                    },
-                    after: {
-                        conditioned_state: existingNode.conditioned_state,
-                        x: existingNode.x,
-                        y: existingNode.y
-                    }
-                });
             } else {
                 // Add new node
                 const newNode = {
@@ -316,15 +293,11 @@ class GraphVisualization {
                     fy: null,
                     vx: 0,
                     vy: 0,
-                    type: node.type || 'effect',
+                    type: node.type || 'node',
                     width: nodeWidth,
                     height: this.nodeHeight
                 };
                 this.simulationNodes.set(node.id, newNode);
-                console.log(`Added new node ${node.id}:`, {
-                    conditioned_state: newNode.conditioned_state,
-                    position: {x: newNode.x, y: newNode.y}
-                });
             }
         });
         
@@ -366,21 +339,14 @@ class GraphVisualization {
         
         // Update visual elements
         this.updateVisuals();
-        
-        console.log("=== UPDATE DATA END ===");
     }
     
     // Update visual elements without touching simulation
     updateVisuals() {
-        console.log("=== UPDATE VISUALS START ===");
         
         // Get current nodes with their data
         const currentNodes = Array.from(this.simulationNodes.values());
-        console.log("Current nodes before visual update:", currentNodes.map(d => ({
-            id: d.id,
-            conditioned_state: d.conditioned_state,
-            isConditioned: d.conditioned_state >= 0
-        })));
+            
             
         // Update nodes
         const nodes = this.nodesGroup
@@ -393,7 +359,7 @@ class GraphVisualization {
         // Enter new nodes
         const nodeEnter = nodes.enter()
             .append("g")
-            .attr("class", d => `node ${d.type || 'effect'}`);
+            .attr("class", d => `node ${d.type || 'node'}`);
             
         // Add basic elements to new nodes
         nodeEnter
@@ -427,10 +393,7 @@ class GraphVisualization {
             // Update ellipse styling
             node.select("ellipse")
                 .attr("rx", d.width / 2)
-                .attr("ry", d.height / 2)
-                .style("stroke", isConditioned ? "#ea580c" : "#94a3b8")
-                .style("fill", isConditioned ? "#ffedd5" : "white")
-                .style("stroke-width", isConditioned ? "3px" : "2px");
+                .attr("ry", d.height / 2);
                 
             // Update text
             node.select("text.node-label")
@@ -466,17 +429,13 @@ class GraphVisualization {
         states.merge(stateEnter)
             .text(d => `states: ${d.states}`);
             
-        console.log("=== UPDATE VISUALS END ===");
     }
     
     async startUpdateLoop() {
         while (true) {
             try {
-                console.log("=== FETCH START ===");
                 const response = await fetch('/state');
                 const data = await response.json();
-                console.log("Raw response from /state:", JSON.stringify(data, null, 2));
-                console.log("=== FETCH END ===");
                 this.updateData(data);
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -510,9 +469,7 @@ class GraphVisualization {
 }
 
 // Create instance when the script loads
-console.log("=== SCRIPT LOADED ===");
 window.addEventListener('DOMContentLoaded', () => {
-    console.log("=== DOM LOADED ===");
     try {
         window.graphViz = new GraphVisualization();
     } catch (error) {

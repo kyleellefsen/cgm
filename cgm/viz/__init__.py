@@ -48,7 +48,6 @@ _port = 5050
 # Get the development directory path
 _dev_dir = pathlib.Path(__file__).parent
 _static_dir = _dev_dir / "static"
-print(f"Using static directory: {_static_dir} (exists: {_static_dir.exists()})")
 assert _static_dir.exists(), f"Static files directory not found: {_static_dir}"
 
 # Mount static files directory
@@ -58,17 +57,14 @@ _app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 async def home() -> FileResponse:
     """Serve the visualization page."""
     html_path = _static_dir / "viz-layout.html"
-    print(html_path)
     return FileResponse(html_path)
 
 @_app.get("/state", response_model=GraphState)
 async def get_state() -> Dict:
     """Return the current graph state as JSON."""
     if _current_graph is None:
-        print("No current graph")
         return {"nodes": [], "links": []}
 
-    print("\n=== SERVER STATE REQUEST START ===")
     # Convert graph to D3 format
     nodes = []
     links = []
@@ -95,10 +91,8 @@ async def get_state() -> Dict:
                 value = _graph_state.values[idx]
                 if value != -1:
                     node_data["conditioned_state"] = int(value)
-                    print(f"Node {node.name} conditioned to {value}")
 
         nodes.append(node_data)
-        print(f"Added node: {node_data['id']}, conditioned_state: {node_data.get('conditioned_state')}")
 
     # Add edges from parent relationships
     for node in _current_graph.nodes:
@@ -108,28 +102,23 @@ async def get_state() -> Dict:
                 "target": node.name
             }
             links.append(link)
-            print(f"Added link: {parent.name} -> {node.name}")
 
     response = {"nodes": nodes, "links": links}
-    print("=== SERVER STATE REQUEST END ===\n")
     return response
 
 @_app.post("/condition/{node_id}/{state}")
 async def condition_node(node_id: str, state: int):
     """Update node's conditioned state"""
     if _current_graph is None:
-        print("No current graph")
         return {"status": "no graph loaded"}
         
     # Create new graph state if needed
     global _graph_state
     if _graph_state is None:
-        print("Creating new graph state")
         _graph_state = cgm.GraphState.create(_current_graph)
         
     schema = _graph_state.schema
     if node_id not in schema.var_to_idx:
-        print(f"Node {node_id} not found")
         return {"status": "node not found"}
         
     # Update state
@@ -138,11 +127,9 @@ async def condition_node(node_id: str, state: int):
     idx = schema.var_to_idx[node_id]
     
     if state == -1:  # Clear conditioning
-        print(f"Clearing conditioning for node {node_id}")
         new_values[idx] = -1
         new_mask[idx] = False
     else:  # Set conditioning
-        print(f"Setting node {node_id} to state {state}")
         new_values[idx] = state
         new_mask[idx] = True
         
@@ -153,15 +140,12 @@ async def condition_node(node_id: str, state: int):
         _values=new_values,
         _mask=new_mask
     )
-    print(f"Updated graph state: values={_graph_state.values}, mask={_graph_state.mask}")
     return {"status": "updated"}
 
 @_app.get("/test-static")
 async def test_static():
     """Test route to verify static file access."""
     js_path = _static_dir / "js" / "viz-graph.js"
-    print(f"Testing static file access. File exists: {js_path.exists()}")
-    print(f"Static directory contents: {list(_static_dir.iterdir())}")
     if "js" in [d.name for d in _static_dir.iterdir()]:
         print(f"JS directory contents: {list((_static_dir / 'js').iterdir())}")
     return {"static_dir": str(_static_dir), "js_exists": js_path.exists()}
@@ -173,8 +157,6 @@ def start_server() -> None:
         return
 
     def run_server():
-        print("Starting server...")
-        print(f"Static directory: {_static_dir}")
         uvicorn.run(_app, host="127.0.0.1", port=_port, log_level="info")
 
     _server_thread = threading.Thread(target=run_server, daemon=True)

@@ -51,25 +51,12 @@ body {
     stroke-width: 6px;
 }
 
-.cause ellipse {
-    stroke: #A8C07A;
-}
-
-.effect ellipse {
+.node ellipse {
     stroke: #E06666;
-}
-
-.irr ellipse {
-    stroke: #CFE2F3;
 }
 
 .background ellipse {
     stroke: #F6B26B;
-}
-
-/* Conditioned circle styles */
-.node circle.conditioned {
-    display: none !important;
 }
 
 /* New conditioned node styles */
@@ -172,31 +159,4 @@ body {
 .cpd-table tr.active {
     opacity: 1;
     background-color: #f0f9ff;
-}
-
-/* Make sure the conditioned circle is on top */
-.node text {
-    z-index: 5;
-    position: relative;
-}
-
-/* Ensure proper z-index stacking */
-.node ellipse {
-    z-index: 1;
-    position: relative;
-}
-
-.node circle.conditioned {
-    z-index: 10;
-    position: relative;
-}
-
-.node text {
-    z-index: 5;
-    position: relative;
-}
-
-/* Ensure proper stacking order */
-.node {
-    position: relative;
 }
