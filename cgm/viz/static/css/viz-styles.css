@@ -4,11 +4,14 @@
     --condition-border-color: #2563eb;  /* Medium blue border */
     --unconditioned-border-color: #E06666;  /* Red border for unconditioned nodes */
     --cpd-hover-color: #e5e7eb;  /* Grey color for CPD cell hover */
+    --resizer-color: #e5e7eb;    /* Light grey for resizer */
+    --resizer-hover-color: #cbd5e1; /* Darker grey for resizer hover */
 }
 
 body { 
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; /* Prevent scrolling on body */
 }
 
 .container {
@@ -16,32 +19,105 @@ body {
     width: 100vw;
     height: 100vh;
     position: relative;
+    overflow: hidden; /* Prevent container scrolling */
 }
 
 .graph-container {
     flex: 1 1 70%;
     min-width: 200px;
+    height: 100vh;
+    position: relative;
 }
 
-.resizer {
+.graph-container svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Panels Container */
+.panels-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 30%;
+    min-width: 200px;
+    height: 100vh;
+    overflow: hidden; /* Prevent container scrolling */
+}
+
+.upper-panel, .lower-panel {
+    background: #f9fafb;
+    padding: 1rem;
+    overflow-y: auto;
+    min-height: 100px;
+    box-sizing: border-box; /* Include padding in height calculation */
+}
+
+.upper-panel {
+    flex: 1 1 50%;
+    border-bottom: 1px solid var(--resizer-color);
+}
+
+.lower-panel {
+    flex: 1 1 50%;
+    border-top: 1px solid var(--resizer-color);
+}
+
+/* Resizers */
+.vertical-resizer {
     width: 8px;
-    background-color: #e5e7eb;
+    background-color: var(--resizer-color);
     cursor: col-resize;
     transition: background-color 0.2s;
     user-select: none;
     flex: 0 0 auto;
+    height: 100vh;
+    position: relative;
+    z-index: 10;
 }
 
-.resizer:hover, .resizer.resizing {
-    background-color: #cbd5e1;
+.horizontal-resizer {
+    height: 8px;
+    background-color: var(--resizer-color);
+    cursor: row-resize;
+    transition: background-color 0.2s;
+    user-select: none;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 10;
 }
 
-.panel-container {
-    flex: 1 1 30%;
-    min-width: 200px;
-    background: #f9fafb;
-    padding: 1rem;
-    overflow-y: auto;
+.vertical-resizer:hover, 
+.vertical-resizer.resizing {
+    background-color: var(--resizer-hover-color);
+    width: 8px;
+}
+
+.horizontal-resizer:hover,
+.horizontal-resizer.resizing {
+    background-color: var(--resizer-hover-color);
+    height: 8px;
+}
+
+/* Add visual handles to resizers */
+.vertical-resizer::after {
+    content: "⋮";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 16px;
+}
+
+.horizontal-resizer::after {
+    content: "⋯";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 16px;
 }
 
 /* Graph elements */
@@ -133,6 +209,10 @@ body {
     color: #6b7280;
     text-align: center;
     padding: 2rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .cpd-content {

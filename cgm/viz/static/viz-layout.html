@@ -2,15 +2,6 @@
 <html>
 <head>
     <title>CGM Graph Visualization</title>
-    <script>
-        window.addEventListener('load', () => {
-            console.log("=== WINDOW LOADED ===");
-        });
-        window.addEventListener('error', (event) => {
-            console.error("=== SCRIPT ERROR ===");
-            console.error(event.error);
-        });
-    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link rel="stylesheet" href="/static/css/viz-styles.css"> 
 </head>
@@ -19,17 +10,68 @@
         <div class="graph-container">
             <svg id="graph"></svg>
         </div>
-        <div class="resizer" id="resizer"></div>
-        <div class="panel-container">
-            <div class="panel-placeholder">
-                Click a node to view its CPD table
+        <div class="vertical-resizer" id="vertical-resizer"></div>
+        <div class="panels-container">
+            <div class="upper-panel">
+                <div class="panel-placeholder">
+                    Click a node to view its CPD table
+                </div>
+            </div>
+            <div class="horizontal-resizer" id="horizontal-resizer"></div>
+            <div class="lower-panel">
+                <div class="panel-placeholder">
+                    Plotting panel (coming soon)
+                </div>
             </div>
         </div>
     </div>
     <script src="/static/js/viz-graph.js"></script>
     <script>
-        // Initialize visualization
-        window.graphViz = new GraphVisualization();
+        // Wait for both DOM content and window load
+        let isDOMReady = false;
+        let isWindowLoaded = false;
+        let initAttempts = 0;
+        const maxAttempts = 3;
+
+        function tryInitialize() {
+            if (initAttempts >= maxAttempts) {
+                console.error('Failed to initialize after', maxAttempts, 'attempts');
+                return;
+            }
+            
+            try {
+                if (!window.graphViz) {
+                    console.log('Initializing GraphVisualization...');
+                    window.graphViz = new GraphVisualization();
+                    console.log('GraphVisualization initialized successfully');
+                }
+            } catch (error) {
+                console.error('Error initializing GraphVisualization:', error);
+                initAttempts++;
+                setTimeout(tryInitialize, 100);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM Content Loaded');
+            isDOMReady = true;
+            if (isWindowLoaded) tryInitialize();
+        });
+
+        window.addEventListener('load', () => {
+            console.log('Window Loaded');
+            isWindowLoaded = true;
+            if (isDOMReady) tryInitialize();
+        });
+
+        // Global error handlers
+        window.addEventListener('error', (event) => {
+            console.error('Script Error:', event.error);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled Promise Rejection:', event.reason);
+        });
     </script>
 </body>
 </html>

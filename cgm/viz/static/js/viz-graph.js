@@ -1,25 +1,30 @@
 class GraphVisualization {
-    setupResizer() {
-        const resizer = document.getElementById('resizer');
+    setupResizers() {
+        this.setupVerticalResizer();
+        this.setupHorizontalResizer();
+    }
+
+    setupVerticalResizer() {
+        const resizer = document.getElementById('vertical-resizer');
         const graphContainer = document.querySelector('.graph-container');
-        const panelContainer = document.querySelector('.panel-container');
+        const panelsContainer = document.querySelector('.panels-container');
         
         let isResizing = false;
         let startX;
         let startGraphWidth;
-        let startPanelWidth;
+        let startPanelsWidth;
         
-        // Handle resize start
         const startResize = (e) => {
             isResizing = true;
             resizer.classList.add('resizing');
             startX = e.pageX;
             startGraphWidth = graphContainer.offsetWidth;
-            startPanelWidth = panelContainer.offsetWidth;
+            startPanelsWidth = panelsContainer.offsetWidth;
             document.documentElement.style.cursor = 'col-resize';
+            e.preventDefault();
+            e.stopPropagation();
         };
         
-        // Handle resize
         const resize = (e) => {
             if (!isResizing) return;
             
@@ -27,14 +32,14 @@ class GraphVisualization {
             
             // Calculate new widths
             const newGraphWidth = startGraphWidth + dx;
-            const newPanelWidth = startPanelWidth - dx;
+            const newPanelsWidth = startPanelsWidth - dx;
             
             // Apply minimum widths
-            if (newGraphWidth >= 200 && newPanelWidth >= 200) {
+            if (newGraphWidth >= 200 && newPanelsWidth >= 200) {
                 graphContainer.style.flex = 'none';
-                panelContainer.style.flex = 'none';
+                panelsContainer.style.flex = 'none';
                 graphContainer.style.width = `${newGraphWidth}px`;
-                panelContainer.style.width = `${newPanelWidth}px`;
+                panelsContainer.style.width = `${newPanelsWidth}px`;
                 
                 // Update visualization width
                 this.width = this.calculateWidth();
@@ -44,23 +49,32 @@ class GraphVisualization {
                 this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
                 this.simulation.alpha(0.3).restart();
             }
+            e.preventDefault();
+            e.stopPropagation();
         };
         
-        // Handle resize end
-        const stopResize = () => {
+        const stopResize = (e) => {
             if (!isResizing) return;
             isResizing = false;
             resizer.classList.remove('resizing');
             document.documentElement.style.cursor = '';
+            e.preventDefault();
+            e.stopPropagation();
         };
         
-        // Add event listeners
         resizer.addEventListener('mousedown', startResize);
         document.addEventListener('mousemove', resize);
         document.addEventListener('mouseup', stopResize);
-        
-        // Clean up on window resize
+
+        // Add window resize handler
         window.addEventListener('resize', () => {
+            // Reset flex layout
+            graphContainer.style.flex = '1 1 70%';
+            panelsContainer.style.flex = '1 1 30%';
+            graphContainer.style.width = '';
+            panelsContainer.style.width = '';
+            
+            // Update visualization dimensions
             this.width = this.calculateWidth();
             this.height = window.innerHeight;
             this.svg.attr("width", this.width)
@@ -70,13 +84,76 @@ class GraphVisualization {
             this.simulation.alpha(0.3).restart();
         });
     }
-    
+
+    setupHorizontalResizer() {
+        const resizer = document.getElementById('horizontal-resizer');
+        const upperPanel = document.querySelector('.upper-panel');
+        const lowerPanel = document.querySelector('.lower-panel');
+        
+        let isResizing = false;
+        let startY;
+        let startUpperHeight;
+        let startLowerHeight;
+        
+        const startResize = (e) => {
+            isResizing = true;
+            resizer.classList.add('resizing');
+            startY = e.pageY;
+            startUpperHeight = upperPanel.offsetHeight;
+            startLowerHeight = lowerPanel.offsetHeight;
+            document.documentElement.style.cursor = 'row-resize';
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        
+        const resize = (e) => {
+            if (!isResizing) return;
+            
+            const dy = e.pageY - startY;
+            
+            // Calculate new heights
+            const newUpperHeight = startUpperHeight + dy;
+            const newLowerHeight = startLowerHeight - dy;
+            
+            // Apply minimum heights
+            if (newUpperHeight >= 100 && newLowerHeight >= 100) {
+                upperPanel.style.flex = 'none';
+                lowerPanel.style.flex = 'none';
+                upperPanel.style.height = `${newUpperHeight}px`;
+                lowerPanel.style.height = `${newLowerHeight}px`;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        
+        const stopResize = (e) => {
+            if (!isResizing) return;
+            isResizing = false;
+            resizer.classList.remove('resizing');
+            document.documentElement.style.cursor = '';
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        
+        resizer.addEventListener('mousedown', startResize);
+        document.addEventListener('mousemove', resize);
+        document.addEventListener('mouseup', stopResize);
+
+        // Add window resize handler for vertical layout
+        window.addEventListener('resize', () => {
+            // Reset flex layout
+            upperPanel.style.flex = '1 1 50%';
+            lowerPanel.style.flex = '1 1 50%';
+            upperPanel.style.height = '';
+            lowerPanel.style.height = '';
+        });
+    }
+
     calculateWidth() {
         return document.querySelector('.graph-container').offsetWidth;
     }
 
     constructor() {
-        
         // Set up constants
         this.width = this.calculateWidth();
         this.height = window.innerHeight;
@@ -123,65 +200,35 @@ class GraphVisualization {
         this.nodesGroup = this.svg.append("g");
         this.labelsGroup = this.svg.append("g");
         
-        // Set up resizer
-        this.setupResizer();
-        
+        // Set up resizers
+        this.setupResizers();
         
         // Start update loop
         this.startUpdateLoop();
         
         this.conditioned_vars = {};
     }
-    
-    // Calculate node width based on text
-    calculateNodeWidth(text) {
-        // Create temporary text element to measure width
-        const temp = this.svg.append("text")
-            .attr("class", "node-label")
-            .text(text);
-        const width = temp.node().getBBox().width;
-        temp.remove();
-        return width + this.textPadding * 2; // Add padding on both sides
-    }
-    
-    // Drag handlers
-    dragstarted(event, d) {
-        if (!event.active) this.simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-        d.isDragging = true;
-        event.sourceEvent.stopPropagation();
+
+    tick() {
+        // Update links
+        this.linksGroup.selectAll(".link")
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        // Update node groups
+        this.nodesGroup.selectAll(".node")
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+
+        // Update labels
+        this.labelsGroup.selectAll(".node-states")
+            .attr("x", d => d.x)
+            .attr("y", d => d.y + this.nodeHeight);
     }
 
-    dragged(event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
-        event.sourceEvent.stopPropagation();
-    }
-
-    dragended(event, d) {
-        if (!event.active) this.simulation.alphaTarget(0);
-        // Only keep position fixed if the node was explicitly pinned
-        if (!d.isPinned) {
-            d.fx = null;
-            d.fy = null;
-        }
-        d.isDragging = false;
-        event.sourceEvent.stopPropagation();
-    }
-
-    // Handle node selection and conditioning
-    handleNodeClick(event, d) {
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        this.updatePanel(d);
-    }
-    
-    // Update panel with CPD table
     updatePanel(node) {
-        const panel = d3.select(".panel-container");
+        const panel = d3.select(".upper-panel");
         
         if (!node.cpd) {
             panel.html(`
@@ -229,7 +276,6 @@ class GraphVisualization {
         this.updateTableHighlighting(node);
     }
 
-    // Update table highlighting based on node's conditioning state
     updateTableHighlighting(node) {
         const table = d3.select(".cpd-table");
         if (!table.node()) return;  // Exit if no table is displayed
@@ -256,66 +302,26 @@ class GraphVisualization {
                 .classed("state-active", true);
         }
     }
-    
-    generateCPDRows(node) {
-        // Simple example - adapt based on your actual CPD structure
-        return `
-            <tr>
-                <th>State</th>
-                <th>Probability</th>
-            </tr>
-            ${Array.from({length: node.states}, (_, i) => `
-                <tr>
-                    <td class="state-cell" 
-                        data-variable="${node.id}" 
-                        data-state="${i}"
-                        style="cursor: pointer;
-                               background: ${node.conditioned_state === i ? '#e0f2fe' : ''}">
-                        State ${i}
-                    </td>
-                    <td>${(Math.random().toFixed(2))}</td>
-                </tr>
-            `).join('')}
-        `;
-    }
-    
-    // Update the visual elements based on simulation state
-    tick() {
-        // Update links
-        this.linksGroup.selectAll(".link")
-            .attr("x1", d => d.source.x)
-            .attr("y1", d => d.source.y)
-            .attr("x2", d => d.target.x)
-            .attr("y2", d => d.target.y);
 
-        // Update node groups
-        this.nodesGroup.selectAll(".node")
-            .attr("transform", d => `translate(${d.x},${d.y})`);
+    async startUpdateLoop() {
+        while (true) {
+            try {
+                const response = await fetch('/state');
+                const data = await response.json();
+                this.updateData(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    }
+    
+    fetchAndUpdateState() {
+        fetch('/state')
+            .then(response => response.json())
+            .then(data => this.updateData(data));
+    }
 
-        // Update labels
-        this.labelsGroup.selectAll(".node-states")
-            .attr("x", d => d.x)
-            .attr("y", d => d.y + this.nodeHeight);
-    }
-    
-    // Check if graph structure changed
-    hasStructureChanged(newData) {
-        if (this.simulationNodes.size !== newData.nodes.length) return true;
-        if (this.simulationLinks.size !== newData.links.length) return true;
-        
-        for (const node of newData.nodes) {
-            if (!this.simulationNodes.has(node.id)) return true;
-        }
-        
-        for (const link of newData.links) {
-            const linkId = `${link.source}-${link.target}`;
-            if (!this.simulationLinks.has(linkId)) return true;
-        }
-        
-        return false;
-    }
-    
-    // Update data without disturbing simulation
     updateData(newData) {
         // Update existing nodes and add new ones
         newData.nodes.forEach(node => {
@@ -423,13 +429,10 @@ class GraphVisualization {
             }
         }
     }
-    
-    // Update visual elements without touching simulation
+
     updateVisuals() {
-        
         // Get current nodes with their data
         const currentNodes = Array.from(this.simulationNodes.values());
-            
             
         // Update nodes
         const nodes = this.nodesGroup
@@ -516,43 +519,49 @@ class GraphVisualization {
             
         states.merge(stateEnter)
             .text(d => `states: ${d.states}`);
-            
-    }
-    
-    async startUpdateLoop() {
-        while (true) {
-            try {
-                const response = await fetch('/state');
-                const data = await response.json();
-                this.updateData(data);
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-    }
-    
-    fetchAndUpdateState() {
-        fetch('/state')
-            .then(response => response.json())
-            .then(data => this.updateData(data));
     }
 
-    highlightConditionedRows() {
-        const table = document.querySelector('.cpd-table');
-        if (!table) return;
-        
-        const conditionedVars = JSON.parse(table.dataset.conditioned || "{}");
-        
-        table.querySelectorAll('tr').forEach(row => {
-            const matches = Array.from(row.cells).every(cell => {
-                const varName = cell.getAttribute('data-variable');
-                const value = parseInt(cell.getAttribute('data-value'));
-                return !varName || !(varName in conditionedVars) || 
-                       conditionedVars[varName] === value;
-            });
-            row.classList.toggle('active', matches);
-        });
+    calculateNodeWidth(text) {
+        // Create temporary text element to measure width
+        const temp = this.svg.append("text")
+            .attr("class", "node-label")
+            .text(text);
+        const width = temp.node().getBBox().width;
+        temp.remove();
+        return width + this.textPadding * 2; // Add padding on both sides
+    }
+
+    dragstarted(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+        d.isDragging = true;
+        event.sourceEvent.stopPropagation();
+    }
+
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+        event.sourceEvent.stopPropagation();
+    }
+
+    dragended(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0);
+        // Only keep position fixed if the node was explicitly pinned
+        if (!d.isPinned) {
+            d.fx = null;
+            d.fy = null;
+        }
+        d.isDragging = false;
+        event.sourceEvent.stopPropagation();
+    }
+
+    handleNodeClick(event, d) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        this.updatePanel(d);
     }
 }
 
@@ -576,4 +585,4 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
     console.error("=== UNHANDLED PROMISE REJECTION ===");
     console.error(event.reason);
-});
+}); 
