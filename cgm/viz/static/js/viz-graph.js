@@ -7,26 +7,14 @@ class Plot {
     }
 
     initialize() {
-        // Clear any existing content
+        // Only setup container and basic SVG structure
         this.container.html("");
-        
-        // Create SVG container
         this.svg = this.container.append("svg")
-            .style("width", "100%")
-            .style("height", "100%");
-            
-        // Create plot group with margins
+            .attr("width", this.width + this.margin.left + this.margin.right)
+            .attr("height", this.height + this.margin.top + this.margin.bottom)
+            .style("display", "block");
         this.plotGroup = this.svg.append("g")
             .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
-            
-        // Add clip path to prevent plotting outside bounds
-        this.svg.append("defs").append("clipPath")
-            .attr("id", "plot-area")
-            .append("rect")
-            .attr("x", 0)
-            .attr("y", 0)
-            .attr("width", this.width)
-            .attr("height", this.height);
     }
 
     get width() {
@@ -38,80 +26,21 @@ class Plot {
     }
 
     update(data) {
-        this.data = data;
-        this.render();
+        const hasChanged = this.shouldUpdate(data);
+        if (hasChanged) {
+            this.data = data;
+            this.render();
+        }
+    }
+
+    shouldUpdate(newData) {
+        // Subclasses should implement their own update detection
+        return true;
     }
 
     render() {
-        if (!this.data || !this.data.samples || !this.data.samples.length) {
-            console.warn("No data to render");
-            return;
-        }
-
-        console.log("Rendering plot with data:", this.data);  // Debug log
-        console.log("Container dimensions:", {
-            width: this.width,
-            height: this.height,
-            containerWidth: this.container.node().offsetWidth,
-            containerHeight: this.container.node().offsetHeight
-        });
-
-        // Count occurrences of each state
-        const counts = new Map();
-        this.data.samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
-        
-        // Convert to probability
-        const probs = Array.from(counts.entries()).map(([state, count]) => ({
-            state,
-            probability: count / this.data.samples.length
-        }));
-        
-        // Sort by state
-        probs.sort((a, b) => a.state - b.state);
-
-        console.log("Probability data:", probs);  // Debug log
-
-        // Update scales
-        this.xScale
-            .domain(probs.map(d => d.state))
-            .range([0, this.width]);
-            
-        this.yScale
-            .domain([0, 1])
-            .range([this.height, 0]);
-            
-        // Update axes
-        this.xAxis.call(
-            d3.axisBottom(this.xScale)
-                .tickFormat(d => `State ${d}`)
-        );
-        this.yAxis.call(
-            d3.axisLeft(this.yScale)
-                .ticks(5)
-                .tickFormat(d3.format(".0%"))
-        );
-        
-        // Draw bars
-        const bars = this.plotGroup.selectAll(".bar")
-            .data(probs);
-            
-        // Remove old bars
-        bars.exit().remove();
-        
-        // Add new bars
-        const barsEnter = bars.enter()
-            .append("rect")
-            .attr("class", "bar")
-            .style("fill", "#4682b4");  // Add a default color
-            
-        // Update all bars
-        bars.merge(barsEnter)
-            .transition()
-            .duration(200)
-            .attr("x", d => this.xScale(d.state))
-            .attr("y", d => this.yScale(d.probability))
-            .attr("width", this.xScale.bandwidth())
-            .attr("height", d => this.height - this.yScale(d.probability));
+        // This should be abstract - force subclasses to implement
+        throw new Error("render() must be implemented by subclass");
     }
 }
 
@@ -119,9 +48,45 @@ class DistributionPlot extends Plot {
     constructor(container, data) {
         super(container, data);
         this.margin = {top: 40, right: 20, bottom: 40, left: 50};
-        this.xScale = d3.scaleBand()  // Use scaleBand for discrete states
+        this.xScale = d3.scaleBand()
             .padding(0.1);
         this.yScale = d3.scaleLinear();
+        this.previousData = null;  // Store previous data for comparison
+    }
+
+    // Helper method to process data
+    processData(samples) {
+        if (!samples || !samples.length) return [];
+        
+        // Count occurrences of each state
+        const counts = new Map();
+        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+        
+        // Convert to probability
+        const probs = Array.from(counts.entries()).map(([state, count]) => ({
+            state,
+            probability: count / samples.length
+        }));
+        
+        // Sort by state
+        return probs.sort((a, b) => a.state - b.state);
+    }
+
+    // Helper method to check if data has changed
+    hasDataChanged(newData) {
+        if (!this.previousData) return true;
+        if (!newData || !newData.samples) return true;
+        
+        const oldProbs = this.processData(this.previousData.samples);
+        const newProbs = this.processData(newData.samples);
+        
+        if (oldProbs.length !== newProbs.length) return true;
+        
+        return newProbs.some((newProb, i) => {
+            const oldProb = oldProbs[i];
+            return newProb.state !== oldProb.state || 
+                   Math.abs(newProb.probability - oldProb.probability) > 0.001;
+        });
     }
 
     initialize() {
@@ -132,14 +97,14 @@ class DistributionPlot extends Plot {
         this.svg = this.container.append("svg")
             .attr("width", this.width + this.margin.left + this.margin.right)
             .attr("height", this.height + this.margin.top + this.margin.bottom)
-            .style("display", "block")  // Ensure SVG is displayed as block
+            .style("display", "block")
             .style("overflow", "visible");
             
         // Create plot group with margins
         this.plotGroup = this.svg.append("g")
             .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
             
-        // Add axes
+        // Add axes groups but don't populate them yet
         this.xAxis = this.plotGroup.append("g")
             .attr("class", "axis x-axis")
             .attr("transform", `translate(0,${this.height})`);
@@ -147,15 +112,14 @@ class DistributionPlot extends Plot {
         this.yAxis = this.plotGroup.append("g")
             .attr("class", "axis y-axis");
             
-        // Add title
-        this.title = this.svg.append("text")
+        // Add static elements that don't need frequent updates
+        this.svg.append("text")
             .attr("class", "plot-title")
             .attr("text-anchor", "middle")
             .attr("x", this.margin.left + this.width/2)
             .attr("y", 25)
             .text(this.data.title || "Distribution");
 
-        // Add axis labels
         this.plotGroup.append("text")
             .attr("class", "axis-label")
             .attr("text-anchor", "middle")
@@ -171,21 +135,19 @@ class DistributionPlot extends Plot {
     }
 
     render() {
-        const {samples, variable} = this.data;
-        if (!samples || !samples.length) return;
+        const {samples} = this.data;
+        
+        // Check if data has actually changed
+        if (!this.hasDataChanged(this.data)) {
+            return;  // Skip update if data hasn't changed
+        }
+        
+        // Process the data
+        const probs = this.processData(samples);
+        if (!probs.length) return;
 
-        // Count occurrences of each state
-        const counts = new Map();
-        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
-        
-        // Convert to probability
-        const probs = Array.from(counts.entries()).map(([state, count]) => ({
-            state,
-            probability: count / samples.length
-        }));
-        
-        // Sort by state
-        probs.sort((a, b) => a.state - b.state);
+        // Store current data for future comparison
+        this.previousData = {...this.data};
 
         // Update scales
         this.xScale
@@ -193,39 +155,52 @@ class DistributionPlot extends Plot {
             .range([0, this.width]);
             
         this.yScale
-            .domain([0, 1])  // Probabilities are between 0 and 1
+            .domain([0, 1])
             .range([this.height, 0]);
             
-        // Update axes
-        this.xAxis.call(
-            d3.axisBottom(this.xScale)
-                .tickFormat(d => `State ${d}`)
-        );
-        this.yAxis.call(
-            d3.axisLeft(this.yScale)
-                .ticks(5)
-                .tickFormat(d3.format(".0%"))  // Show as percentages
-        );
+        // Update axes only if domain changed
+        const xAxis = d3.axisBottom(this.xScale).tickFormat(d => `State ${d}`);
+        const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format(".0%"));
         
-        // Draw bars
-        const bars = this.plotGroup.selectAll(".bar")
-            .data(probs);
+        // Use transition for axes only if they need updating
+        this.xAxis.transition()
+            .duration(200)
+            .call(xAxis);
             
-        // Remove old bars
-        bars.exit().remove();
+        this.yAxis.transition()
+            .duration(200)
+            .call(yAxis);
         
-        // Add new bars
+        // Update bars with object constancy
+        const bars = this.plotGroup.selectAll(".bar")
+            .data(probs, d => d.state);  // Use state as key for object constancy
+            
+        // ENTER new bars
         const barsEnter = bars.enter()
             .append("rect")
-            .attr("class", "bar");
+            .attr("class", "bar")
+            .style("fill", "#4682b4")
+            // Start new bars at their final x position but at height 0
+            .attr("x", d => this.xScale(d.state))
+            .attr("width", this.xScale.bandwidth())
+            .attr("y", this.height)
+            .attr("height", 0);
             
-        // Update all bars
+        // EXIT old bars
+        bars.exit()
+            .transition()
+            .duration(200)
+            .attr("y", this.height)
+            .attr("height", 0)
+            .remove();
+            
+        // UPDATE + ENTER: merge and transition to new positions
         bars.merge(barsEnter)
             .transition()
             .duration(200)
             .attr("x", d => this.xScale(d.state))
-            .attr("y", d => this.yScale(d.probability))
             .attr("width", this.xScale.bandwidth())
+            .attr("y", d => this.yScale(d.probability))
             .attr("height", d => this.height - this.yScale(d.probability));
     }
 }
@@ -679,11 +654,25 @@ class GraphVisualization {
         // Update visual elements
         this.updateVisuals();
 
-        // Update any open CPD table
+        // Update plot if we have a selected node
         if (this.selectedNode) {
             const updatedNode = newData.nodes.find(n => n.id === this.selectedNode.id);
             if (updatedNode) {
-                this.handleNodeClick(null, updatedNode);
+                // Update the selected node reference
+                this.selectedNode = updatedNode;
+                
+                // Update table highlighting
+                this.updateTableHighlighting(updatedNode);
+                
+                // Update plot data if it exists
+                if (this.plotManager.plots.has('selected-node')) {
+                    const plotData = {
+                        variable: updatedNode.id,
+                        title: `Distribution for ${updatedNode.id}`,
+                        samples: this.generateDummySamples(updatedNode)
+                    };
+                    this.plotManager.updatePlot('selected-node', plotData);
+                }
             }
         }
     }
@@ -819,6 +808,13 @@ class GraphVisualization {
             event.preventDefault();
             event.stopPropagation();
         }
+        
+        // If clicking the same node, just update the table highlighting
+        if (this.selectedNode && this.selectedNode.id === d.id) {
+            this.updateTableHighlighting(d);
+            return;
+        }
+
         const panel = d3.select(".upper-panel");
         
         if (!d.cpd) {
@@ -866,18 +862,17 @@ class GraphVisualization {
         // Apply initial highlighting if node is already conditioned
         this.updateTableHighlighting(d);
 
-        // Create temporary distribution data
+        // Create plot data
         const plotData = {
             variable: d.id,
             title: `Distribution for ${d.id}`,
-            samples: this.generateDummySamples(d)  // We'll replace this with real data later
+            samples: this.generateDummySamples(d)
         };
 
-        // Clear any existing plots and create new one
-        this.plotManager.plots.forEach((plot, id) => {
-            this.plotManager.removePlot(id);
-        });
-        this.plotManager.createPlot('selected-node', 'distribution', plotData);
+        // Only create a new plot if we don't have one for this node
+        if (!this.plotManager.plots.has('selected-node')) {
+            this.plotManager.createPlot('selected-node', 'distribution', plotData);
+        }
     }
 
     // Temporary method to generate dummy samples based on node state
