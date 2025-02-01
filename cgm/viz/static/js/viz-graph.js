@@ -1,3 +1,222 @@
+class Plot {
+    constructor(container, data) {
+        this.container = container;
+        this.data = data;
+        this.margin = {top: 20, right: 20, bottom: 30, left: 40};
+        this.initialize();
+    }
+
+    initialize() {
+        // Clear any existing content
+        this.container.html("");
+        
+        // Create SVG container
+        this.svg = this.container.append("svg")
+            .style("width", "100%")
+            .style("height", "100%");
+            
+        // Create plot group with margins
+        this.plotGroup = this.svg.append("g")
+            .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
+            
+        // Add clip path to prevent plotting outside bounds
+        this.svg.append("defs").append("clipPath")
+            .attr("id", "plot-area")
+            .append("rect")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", this.width)
+            .attr("height", this.height);
+    }
+
+    get width() {
+        return this.container.node().offsetWidth - this.margin.left - this.margin.right;
+    }
+
+    get height() {
+        return this.container.node().offsetHeight - this.margin.top - this.margin.bottom;
+    }
+
+    update(data) {
+        this.data = data;
+        this.render();
+    }
+
+    render() {
+        // Override in subclasses
+        console.warn("Base Plot render() called - override in subclass");
+    }
+}
+
+class DistributionPlot extends Plot {
+    constructor(container, data) {
+        super(container, data);
+        this.margin = {top: 40, right: 20, bottom: 40, left: 50};  // Increased margins for labels
+        this.xScale = d3.scaleLinear();
+        this.yScale = d3.scaleLinear();
+        this.histogram = d3.histogram();
+    }
+
+    initialize() {
+        // Clear any existing content
+        this.container.html("");
+        
+        // Create SVG container with explicit dimensions
+        this.svg = this.container.append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .style("overflow", "visible");  // Allow labels to overflow
+            
+        // Create plot group with margins
+        this.plotGroup = this.svg.append("g")
+            .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
+            
+        // Add axes
+        this.xAxis = this.plotGroup.append("g")
+            .attr("class", "axis x-axis")
+            .attr("transform", `translate(0,${this.height})`);
+            
+        this.yAxis = this.plotGroup.append("g")
+            .attr("class", "axis y-axis");
+            
+        // Add title
+        this.title = this.svg.append("text")
+            .attr("class", "plot-title")
+            .attr("text-anchor", "middle")
+            .attr("x", this.margin.left + this.width/2)
+            .attr("y", 25)
+            .text(this.data.title || "Distribution");
+
+        // Add axis labels
+        this.plotGroup.append("text")
+            .attr("class", "axis-label")
+            .attr("text-anchor", "middle")
+            .attr("x", this.width/2)
+            .attr("y", this.height + 30)
+            .text("Value");
+
+        this.plotGroup.append("text")
+            .attr("class", "axis-label")
+            .attr("text-anchor", "middle")
+            .attr("transform", `translate(${-35},${this.height/2})rotate(-90)`)
+            .text("Frequency");
+    }
+
+    render() {
+        const {samples, variable} = this.data;
+        if (!samples || !samples.length) return;
+
+        // Update scales
+        this.xScale
+            .domain([0, d3.max(samples)])
+            .range([0, this.width]);
+            
+        // Generate histogram data
+        const bins = this.histogram
+            .domain(this.xScale.domain())
+            .thresholds(this.xScale.ticks(10))  // Reduced number of bins
+            (samples);
+            
+        // Update y scale based on histogram
+        this.yScale
+            .domain([0, d3.max(bins, d => d.length)])
+            .range([this.height, 0]);
+            
+        // Update axes with nicer ticks
+        this.xAxis.call(
+            d3.axisBottom(this.xScale)
+                .ticks(5)  // Reduced number of ticks
+                .tickFormat(d3.format(".1f"))
+        );
+        this.yAxis.call(
+            d3.axisLeft(this.yScale)
+                .ticks(5)
+                .tickFormat(d3.format("d"))
+        );
+        
+        // Draw bars
+        const bars = this.plotGroup.selectAll(".bar")
+            .data(bins);
+            
+        // Remove old bars
+        bars.exit().remove();
+        
+        // Add new bars
+        const barsEnter = bars.enter()
+            .append("rect")
+            .attr("class", "bar");
+            
+        // Update all bars
+        bars.merge(barsEnter)
+            .transition()
+            .duration(200)
+            .attr("x", d => this.xScale(d.x0))
+            .attr("y", d => this.yScale(d.length))
+            .attr("width", d => Math.max(0, this.xScale(d.x1) - this.xScale(d.x0) - 1))
+            .attr("height", d => this.height - this.yScale(d.length));
+    }
+}
+
+class PlotManager {
+    constructor() {
+        this.container = d3.select(".lower-panel");
+        this.plots = new Map();  // Store active plots
+        
+        // Initialize with empty state
+        this.container.html(`
+            <div class="panel-header">Plots</div>
+            <div class="plots-container"></div>
+        `);
+        
+        // Handle panel resizing
+        this.handleResize = this.handleResize.bind(this);
+        window.addEventListener('resize', this.handleResize);
+    }
+    
+    handleResize() {
+        // Update all plots when panel is resized
+        this.plots.forEach(plot => {
+            plot.initialize();
+            plot.render();
+        });
+    }
+    
+    createPlot(id, type, data) {
+        const plotContainer = this.container.select(".plots-container")
+            .append("div")
+            .attr("class", "plot-container")
+            .attr("id", `plot-${id}`);
+            
+        let plot;
+        switch(type) {
+            case 'distribution':
+                plot = new DistributionPlot(plotContainer, data);
+                break;
+            default:
+                console.warn(`Unknown plot type: ${type}`);
+                return;
+        }
+        
+        this.plots.set(id, plot);
+        return plot;
+    }
+    
+    updatePlot(id, data) {
+        const plot = this.plots.get(id);
+        if (plot) {
+            plot.update(data);
+        }
+    }
+    
+    removePlot(id) {
+        const plot = this.plots.get(id);
+        if (plot) {
+            plot.container.remove();
+            this.plots.delete(id);
+        }
+    }
+}
+
 class GraphVisualization {
     setupResizers() {
         this.setupVerticalResizer();
@@ -207,6 +426,25 @@ class GraphVisualization {
         this.startUpdateLoop();
         
         this.conditioned_vars = {};
+        
+        // Initialize plot manager
+        this.plotManager = new PlotManager();
+        
+        // Add test plot with dummy data - create a normal distribution
+        const normalData = Array.from({length: 1000}, () => {
+            // Box-Muller transform to generate normal distribution
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            return z + 2;  // Shift mean to 2
+        });
+        
+        const dummyData = {
+            variable: 'test',
+            title: 'Test Distribution',
+            samples: normalData
+        };
+        this.plotManager.createPlot('test', 'distribution', dummyData);
     }
 
     tick() {
@@ -232,7 +470,7 @@ class GraphVisualization {
     }
 
     updateTableHighlighting(node) {
-        const table = d3.select(".cpd-table");
+        const table = d3.select(".upper-panel .cpd-table");
         if (!table.node()) return;  // Exit if no table is displayed
 
         // Clear any existing highlighting
