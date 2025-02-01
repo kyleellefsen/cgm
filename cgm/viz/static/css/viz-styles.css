@@ -1,4 +1,11 @@
 /* Base layout */
+:root {
+    --condition-fill-color: #dbeafe;    /* Light blue fill */
+    --condition-border-color: #2563eb;  /* Medium blue border */
+    --unconditioned-border-color: #E06666;  /* Red border for unconditioned nodes */
+    --cpd-hover-color: #e5e7eb;  /* Grey color for CPD cell hover */
+}
+
 body { 
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -52,7 +59,7 @@ body {
 }
 
 .node ellipse {
-    stroke: #E06666;
+    stroke: var(--unconditioned-border-color);
 }
 
 .background ellipse {
@@ -61,13 +68,17 @@ body {
 
 /* New conditioned node styles */
 .node.conditioned ellipse {
-    stroke: #16a34a;
-    fill: #dcfce7;
+    stroke: var(--condition-border-color);
+    fill: var(--condition-fill-color);
 }
 
 /* Update CPD table highlighting */
-.state-cell[style*="background: rgb(224, 242, 254)"] {
-    background: #ffedd5 !important; /* Change blue to orange */
+.state-cell[style*="background: rgb(224, 242, 254)"],
+.cpd-table.no-parents th.state-active,
+.cpd-table.no-parents td.state-active,
+.cpd-table:not(.no-parents) th[data-variable].state-active,
+.cpd-table:not(.no-parents) td[data-variable].state-active {
+    background: var(--condition-fill-color) !important;
 }
 
 /* New styles for selected node */
@@ -141,7 +152,7 @@ body {
 }
 
 .cpd-table th[data-variable]:hover {
-    background-color: #fee2e2;
+    background-color: #b7b7b7;
 }
 
 /* Highlight headers and cells for nodes without parents */
@@ -162,7 +173,7 @@ body {
 }
 
 .cpd-table td[data-variable]:hover {
-    background-color: #fee2e2;
+    background-color: var(--cpd-hover-color);
 }
 
 .panel-header {

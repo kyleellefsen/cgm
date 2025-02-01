@@ -171,10 +171,12 @@ class GraphVisualization {
     }
 
     // Handle node selection and conditioning
-    handleNodeClick(e, d) {
-        e.stopPropagation();
+    handleNodeClick(event, d) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
         this.updatePanel(d);
-        e.sourceEvent.stopPropagation();
     }
     
     // Update panel with CPD table
