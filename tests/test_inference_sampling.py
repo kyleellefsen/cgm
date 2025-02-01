@@ -14,7 +14,9 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 def test_forward_sample():
     logging.debug('Testing forward_sample()')
     cg = cgm.example_graphs.get_cg2()
-    rain, season, slippery, sprinkler, wet = cg.nodes
+    # Get nodes by name instead of relying on order
+    nodes_by_name = {n.name: n for n in cg.nodes}
+    season = nodes_by_name['season']
     sampler = cgm.inference.ForwardSampler(cg, 30)
     num_samples = 1000
     samples = sampler.get_n_samples(num_samples)

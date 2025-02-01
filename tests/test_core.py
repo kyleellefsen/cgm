@@ -48,7 +48,7 @@ def test_cpd_creation_using_cg():
     # Check normalization - should sum to 1 for each parent configuration
     margin = phi1.marginalize([phi1.child]).values
     np.testing.assert_allclose(margin, np.ones_like(margin))
-    # Test creation with default child (first node)
+    # Test creation with default child (first node in scope)
     phi2 = cgm.CPD([B, C])
     assert phi2.child == B
     assert phi2.parents == frozenset({C})
@@ -65,7 +65,6 @@ def test_cpd_creation_using_cg():
     assert g.get_cpd(A) == phi1
     assert g.get_cpd(B) == phi2
     assert g.get_cpd(C) == phi3
-
 
 def test_cpd_creation_with_integer_value():
     cg = cgm.CG()
@@ -524,13 +523,126 @@ def test_cpd_set_scope():
 def test_cpd_condition_mutability():
     """Ensures conditioning doesn't change the parents of any node."""
     cg = cgm.example_graphs.get_cg2()
-    rain, season, slippery, sprinkler, wet = cg.nodes
+    # Get nodes by name instead of relying on order
+    nodes_by_name = {n.name: n for n in cg.nodes}
+    rain = nodes_by_name['rain']
+    season = nodes_by_name['season']
     parent_list_before = [n.parents for n in cg.nodes]
-    rain.cpd.condition({season: 0})
+    rain.cpd.condition({season: 0})  # season is a parent of rain
     parent_list_after = [n.parents for n in cg.nodes]
     for before, after in zip(parent_list_before, parent_list_after):
         assert before == after
 
+def test_nodes_topological_order():
+    """Test that nodes are returned in topological order (parents before children)."""
+    cg = cgm.example_graphs.get_cg2()
+    nodes = cg.nodes
+    nodes_by_name = {n.name: n for n in nodes}
+    
+    # Check that season (root) comes before its child rain
+    season_idx = nodes.index(nodes_by_name['season'])
+    rain_idx = nodes.index(nodes_by_name['rain'])
+    assert season_idx < rain_idx, "season should come before rain in topological order"
+    
+    # Check that rain and sprinkler come before their child wet
+    wet_idx = nodes.index(nodes_by_name['wet'])
+    sprinkler_idx = nodes.index(nodes_by_name['sprinkler'])
+    assert rain_idx < wet_idx, "rain should come before wet in topological order"
+    assert sprinkler_idx < wet_idx, "sprinkler should come before wet in topological order"
+    
+    # Check that wet comes before its child slippery
+    slippery_idx = nodes.index(nodes_by_name['slippery'])
+    assert wet_idx < slippery_idx, "wet should come before slippery in topological order"
+    
+    # Verify that for each node, all its parents appear before it
+    for node in nodes:
+        node_idx = nodes.index(node)
+        for parent in node.parents:
+            parent_idx = nodes.index(parent)
+            assert parent_idx < node_idx, f"Parent {parent.name} should come before child {node.name}"
+
+def test_complex_graph_structure():
+    """Test the structure of the complex graph."""
+    cg = cgm.example_graphs.get_complex_graph()
+    nodes_by_name = {n.name: n for n in cg.nodes}
+    
+    # Test parent-child relationships
+    assert not nodes_by_name['A'].parents, "A should have no parents"
+    assert nodes_by_name['B'].parents == {nodes_by_name['A']}, "B should have A as parent"
+    assert nodes_by_name['C'].parents == {nodes_by_name['A']}, "C should have A as parent"
+    assert nodes_by_name['D'].parents == {nodes_by_name['B']}, "D should have B as parent"
+    assert nodes_by_name['E'].parents == {nodes_by_name['B']}, "E should have B as parent"
+    assert nodes_by_name['F'].parents == {nodes_by_name['C']}, "F should have C as parent"
+    assert nodes_by_name['G'].parents == {nodes_by_name['C']}, "G should have C as parent"
+    assert nodes_by_name['H'].parents == {nodes_by_name['D'], nodes_by_name['E']}, "H should have D and E as parents"
+    assert nodes_by_name['I'].parents == {nodes_by_name['E']}, "I should have E as parent"
+    assert nodes_by_name['J'].parents == {nodes_by_name['H'], nodes_by_name['G']}, "J should have H and G as parents"
+
+
+def test_complex_graph_topological_order():
+    """Test topological ordering in the complex graph."""
+    cg = cgm.example_graphs.get_complex_graph()
+    nodes = cg.nodes
+    nodes_by_name = {n.name: n for n in nodes}
+    
+    # Helper function to check order
+    def assert_comes_before(parent_name: str, child_name: str):
+        parent_idx = nodes.index(nodes_by_name[parent_name])
+        child_idx = nodes.index(nodes_by_name[child_name])
+        assert parent_idx < child_idx, f"{parent_name} should come before {child_name}"
+    
+    # Test all direct parent-child relationships
+    assert_comes_before('A', 'B')
+    assert_comes_before('A', 'C')
+    assert_comes_before('B', 'D')
+    assert_comes_before('B', 'E')
+    assert_comes_before('C', 'F')
+    assert_comes_before('C', 'G')
+    assert_comes_before('D', 'H')
+    assert_comes_before('E', 'H')
+    assert_comes_before('E', 'I')
+    assert_comes_before('H', 'J')
+    assert_comes_before('G', 'J')
+    
+    # Test some multi-hop relationships
+    assert_comes_before('A', 'H')  # A -> B -> D/E -> H
+    assert_comes_before('B', 'J')  # B -> D/E -> H -> J
+    assert_comes_before('C', 'J')  # C -> G -> J
+    
+    # Test that nodes with multiple parents have all parents before them
+    h_idx = nodes.index(nodes_by_name['H'])
+    d_idx = nodes.index(nodes_by_name['D'])
+    e_idx = nodes.index(nodes_by_name['E'])
+    assert max(d_idx, e_idx) < h_idx, "H should come after both its parents D and E"
+    
+    j_idx = nodes.index(nodes_by_name['J'])
+    h_idx = nodes.index(nodes_by_name['H'])
+    g_idx = nodes.index(nodes_by_name['G'])
+    assert max(h_idx, g_idx) < j_idx, "J should come after both its parents H and G"
+
+
+def test_complex_graph_ancestors():
+    """Test ancestor relationships in the complex graph."""
+    cg = cgm.example_graphs.get_complex_graph()
+    nodes_by_name = {n.name: n for n in cg.nodes}
+    
+    # Test ancestor sets for some key nodes
+    assert nodes_by_name['J'].ancestors == {
+        nodes_by_name[n] for n in {'A', 'B', 'C', 'D', 'E', 'G', 'H'}
+    }, "J's ancestors should include A, B, C, D, E, G, H"
+    
+    assert nodes_by_name['H'].ancestors == {
+        nodes_by_name[n] for n in {'A', 'B', 'D', 'E'}
+    }, "H's ancestors should include A, B, D, E"
+    
+    assert nodes_by_name['I'].ancestors == {
+        nodes_by_name[n] for n in {'A', 'B', 'E'}
+    }, "I's ancestors should include A, B, E"
+    
+    # Test that leaf nodes have all intermediate nodes as ancestors
+    assert nodes_by_name['F'].ancestors == {
+        nodes_by_name[n] for n in {'A', 'C'}
+    }, "F's ancestors should include A, C"
 
 def test_variable_equality():
     """Test that Variable equality works correctly"""
@@ -808,9 +920,13 @@ def test_initial_state_creation():
     cg = cgm.example_graphs.get_cg2()
     state = cgm.GraphState.create(cg)
     
-    # Should have all variables from CG2
-    expected_vars = {n.name for n in cg.nodes}
+    # Should have all variables from CG2 in topological order
+    expected_vars = {n.name for n in cg.nodes}  # Order doesn't matter for set comparison
     assert set(state.schema.var_to_idx.keys()) == expected_vars
+    
+    # Verify topological ordering - season has no parents, should be first
+    season_idx = state.schema.var_to_idx["season"]
+    assert season_idx == 0, "Season (root node) should be first in topological order"
     
     # No variables should be conditioned initially
     assert np.all(state.mask == False)

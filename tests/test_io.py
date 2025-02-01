@@ -13,7 +13,8 @@ def test_chain_graph_conversion():
     assert len(graph_tuple.senders) == 2  # Two edges
     assert len(graph_tuple.receivers) == 2
 
-    # Test edge structure (A->B, B->C)
+    # Test edge structure and topological ordering
+    # A should be first (no parents), followed by B, then C
     edge_pairs = list(zip(graph_tuple.senders, graph_tuple.receivers))
     assert (0, 1) in edge_pairs  # A->B
     assert (1, 2) in edge_pairs  # B->C
@@ -29,13 +30,13 @@ def test_chain_graph_conversion():
     assert len(graph_tuple.cpd_values) == 10
 
     # Test retrieving individual CPDs
-    cpd_a = graph_tuple.get_node_cpd(0)
+    cpd_a = graph_tuple.get_node_cpd(0)  # A is first in topological order
     assert cpd_a.shape == (2,)  # Prior on A
 
-    cpd_b = graph_tuple.get_node_cpd(1)
+    cpd_b = graph_tuple.get_node_cpd(1)  # B is second
     assert cpd_b.shape == (2, 2)  # B|A
 
-    cpd_c = graph_tuple.get_node_cpd(2)
+    cpd_c = graph_tuple.get_node_cpd(2)  # C is last
     assert cpd_c.shape == (2, 2)  # C|B
 
 def test_fork_graph_conversion():
@@ -48,7 +49,8 @@ def test_fork_graph_conversion():
     assert len(graph_tuple.senders) == 2
     assert len(graph_tuple.receivers) == 2
 
-    # Test edge structure (A->B, A->C)
+    # Test edge structure and topological ordering
+    # A should be first (root), B and C follow (order between B and C doesn't matter)
     edge_pairs = list(zip(graph_tuple.senders, graph_tuple.receivers))
     assert (0, 1) in edge_pairs  # A->B
     assert (0, 2) in edge_pairs  # A->C
@@ -59,9 +61,10 @@ def test_fork_graph_conversion():
         cpd = graph_tuple.get_node_cpd(i)
         cpd_shapes.append(cpd.shape)
 
+    # A should be first in topological order (no parents)
     assert cpd_shapes[0] == (2,)    # P(A)
-    assert cpd_shapes[1] == (2, 2)  # P(B|A)
-    assert cpd_shapes[2] == (2, 2)  # P(C|A)
+    # B and C can be in either order (both have A as parent)
+    assert {cpd_shapes[1], cpd_shapes[2]} == {(2, 2), (2, 2)}  # P(B|A) and P(C|A)
 
 def test_collider_graph_conversion():
     """Test conversion of a collider graph (A,B) -> C"""
@@ -73,7 +76,8 @@ def test_collider_graph_conversion():
     assert len(graph_tuple.senders) == 2
     assert len(graph_tuple.receivers) == 2
 
-    # Test edge structure (A->C, B->C)
+    # Test edge structure and topological ordering
+    # A and B should come before C in topological order
     edge_pairs = list(zip(graph_tuple.senders, graph_tuple.receivers))
     assert (0, 2) in edge_pairs  # A->C
     assert (1, 2) in edge_pairs  # B->C
@@ -83,7 +87,7 @@ def test_collider_graph_conversion():
     assert len(offsets) == 4  # n_nodes + 1
     assert np.all(np.diff(offsets) >= 0)
 
-    # Check CPD for node C
+    # Check CPD for node C (should be last in topological order)
     cpd_c = graph_tuple.get_node_cpd(2)
     assert cpd_c.shape == (2, 2, 2)  # P(C|A,B)
 

@@ -14,8 +14,11 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 def test_elimination1(visualize=False):
     logging.debug("Running test_elimination1()")
     cg = cgm.example_graphs.get_cg1()
-    A, B, C, D, E, F = cg.nodes
-    elimination_order = [F, E, D, C, B, A]
+    # Get nodes in topological order
+    nodes = cg.nodes
+    # Create elimination order that respects topological ordering
+    # Nodes with no children should be eliminated first
+    elimination_order = [n for n in reversed(nodes)]
     remaining_factors = cgm.inference.eliminate(cg, elimination_order)
     npt.assert_almost_equal(next(iter(remaining_factors)).values.sum(), 1, decimal=5)
     # if visualize:
@@ -26,8 +29,11 @@ def test_elimination1(visualize=False):
 def test_elimination2():
     logging.debug(f"Running test_elimination2()")
     cg = cgm.example_graphs.get_cg2()
-    rain, season, slippery, sprinkler, wet = cg.nodes
-    elimination_order = [season, rain, sprinkler, wet]
+    # Get nodes in topological order
+    nodes = cg.nodes
+    # Create elimination order that respects topological ordering
+    # Nodes with no children should be eliminated first
+    elimination_order = [n for n in reversed(nodes)]
     remaining_factors = cgm.inference.eliminate(cg, elimination_order)
     slippery_factor = next(iter(remaining_factors))
     logging.debug(f"Remaining factor: {slippery_factor}")

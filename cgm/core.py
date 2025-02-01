@@ -691,12 +691,59 @@ class DAG(Generic[D]):
             nodes = []
         self._parent_dict: OrderedDict[DAG_Node[D], FrozenSet[DAG_Node[D]]] = OrderedDict()
         filtered_nodes = [n for n in nodes if n is not None]
-        for node in sorted(filtered_nodes):
+        for node in filtered_nodes:
             self.add_node(node, frozenset(), replace=False)
 
     @property
     def nodes(self) -> list[DAG_Node[D]]:
-        return list(self._parent_dict.keys())
+        """Return nodes in topological order.
+        
+        The nodes are returned in a deterministic topological order, where each node
+        appears after all of its parents. This ordering is cached and recomputed only
+        when the graph structure changes.
+        """
+        return self._topological_order
+
+    @functools.cached_property
+    def _topological_order(self) -> list[DAG_Node[D]]:
+        """Return nodes in topological order. This is important for sampling.
+        
+        Uses Kahn's algorithm to compute a deterministic topological ordering.
+        The ordering is cached and recomputed only when the graph structure changes.
+        
+        Returns:
+            List of nodes in topological order (parents before children)
+        
+        Raises:
+            ValueError: If the graph contains cycles
+        """
+        # Make a copy of the parent dictionary and count incoming edges
+        in_degree = {node: len(parents) for node, parents in self._parent_dict.items()}
+        ready = [node for node, degree in in_degree.items() if degree == 0]
+        
+        # Sort ready nodes by name for deterministic ordering of tied nodes
+        ready.sort(key=lambda x: x.name)
+        
+        result = []
+        while ready:
+            node = ready.pop(0)
+            result.append(node)
+            
+            # Find children of this node (nodes where this is a parent)
+            children = [child for child, parents in self._parent_dict.items() 
+                       if node in parents]
+            
+            for child in children:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    ready.append(child)
+            # Sort ready nodes by name for deterministic ordering of tied nodes
+            ready.sort(key=lambda x: x.name)
+        
+        if len(result) != len(self._parent_dict):
+            raise ValueError("Graph contains cycles")
+            
+        return result
 
     def get_parents(self, node: DAG_Node[D]) -> frozenset[DAG_Node[D]]:
         """Return the parents of a node."""
@@ -719,6 +766,8 @@ class DAG(Generic[D]):
         # Clear cached properties
         if hasattr(self, '_ancestor_dict'):
             delattr(self, '_ancestor_dict')
+        if hasattr(self, '_topological_order'):
+            delattr(self, '_topological_order')
         # First ensure node exists in parent dict
         if node_to_add not in self._parent_dict:
             self._parent_dict[node_to_add] = frozenset()
@@ -731,7 +780,6 @@ class DAG(Generic[D]):
                 return
             raise ValueError(f"Node {node_to_add} already exists with different parents")
         self._parent_dict[node_to_add] = parents_frozen
-        self._parent_dict = OrderedDict(sorted(self._parent_dict.items()))
 
     @functools.cached_property
     def _ancestor_dict(self) -> dict[DAG_Node[D], frozenset[DAG_Node[D]]]:
@@ -802,8 +850,10 @@ class CG:
         """Returns the list of CG_Nodes in the graph.
         
         While the underlying DAG stores DAG_Node objects, this property reconstructs 
-        and returns the original CG_Node objects. The list is guaranteed to be
-        sorted by name, since the underlying DAG is sorted by name.
+        and returns the original CG_Node objects. The list is guaranteed to be in
+        topological order (parents before children). For nodes at the same level in
+        the graph (no parent-child relationship), the order is determined by node names
+        for determinism.
         """
         return [CG_Node(dag_node=node, cg=self) for node in self.dag.nodes]
 
@@ -850,6 +900,10 @@ class GraphSchema:
     Each variable in the schema has a fixed number of states, numbered from 
     0 to num_states-1. This allows -1 to be safely used as a sentinel value 
     for missing/unset data.
+    
+    The mapping from variables to indices follows the graph's topological order,
+    ensuring that parent nodes always have lower indices than their children.
+    This property can be useful for sampling and inference algorithms.
     """
     # Maps each variable name to its position in the data arrays
     var_to_idx: dict[str, int]
@@ -860,9 +914,15 @@ class GraphSchema:
 
     @classmethod
     def from_network(cls, network: CG) -> 'GraphSchema':
-        """Creates a schema from a network, establishing a fixed variable order."""
-        # Sort nodes for deterministic ordering
-        nodes = network.nodes # nodes are already sorted by their unique name
+        """Creates a schema from a network, establishing a fixed variable order.
+        
+        The variables are ordered according to the graph's topological structure,
+        with parent nodes receiving lower indices than their children. For nodes
+        at the same level (no parent-child relationship), ordering is determined
+        by node names for determinism.
+        """
+        # Get nodes in topological order
+        nodes = network.nodes  # nodes are now in topological order
         var_to_idx = {node.name: idx for idx, node in enumerate(nodes)}
         var_to_states = {node.name: node.num_states for node in nodes}
         return cls(

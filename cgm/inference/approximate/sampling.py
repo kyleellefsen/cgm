@@ -37,7 +37,7 @@ class ForwardSampler:
             seed (int): The seed for the random number generator.
         """
         self.cg: cgm.CG = cg
-        self.nodes: list[cgm.CG_Node] = sorted(cg.nodes)
+        self.nodes: list[cgm.CG_Node] = cg.nodes
         self.samples: cgm.Factor[cgm.CG_Node] = cgm.Factor[cgm.CG_Node].get_null()
         self.rng = np.random.default_rng(seed)
 
@@ -51,8 +51,8 @@ class ForwardSampler:
         Returns:
             cgm.Factor[cgm.CG_Node]: The factor representing the generated samples.
         """
-        scope: list[cgm.CG_Node] = sorted(self.cg.nodes)
-        num_dims = tuple(n.num_states for n in self.cg.nodes)
+        scope: list[cgm.CG_Node] = self.nodes
+        num_dims = tuple(n.num_states for n in scope)
         self.samples = cgm.Factor[cgm.CG_Node](scope, np.zeros(num_dims, dtype=int))
         for _ in range(num_samples):
             sample, self.rng = self._forward_sample(self.rng)
@@ -83,7 +83,7 @@ class ForwardSampler:
             SampleDict: The generated sample.
         """
         current_sample: PartialSampleDict = {n: None for n in self.cg.nodes}
-        for n in self.cg.nodes:
+        for n in self.nodes:
             current_sample, rng = self._sample_node(n, current_sample, rng)
         populated_sample: SampleDict = {k: v for k, v in current_sample.items() if v is not None}
         return populated_sample, rng
@@ -107,7 +107,13 @@ class ForwardSampler:
                 current_sample, rng = self._sample_node(p, current_sample, rng)
         populated_sample = {k: v for k, v in current_sample.items() if v is not None}
         parent_states = {n: populated_sample[n] for n in node.parents}
-        conditioned_node = node.cpd.condition(parent_states)
+        
+        # Get the node's CPD and ensure it exists
+        cpd = self.cg.get_cpd(node)
+        if cpd is None:
+            raise ValueError(f"Node {node.name} has no CPD")
+            
+        conditioned_node = cpd.condition(parent_states)
         sample, rng = conditioned_node.sample(1, rng)
         current_sample[node] = sample.item()
         return current_sample, rng

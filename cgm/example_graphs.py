@@ -3,7 +3,11 @@ import numpy as np
 import cgm
 
 def get_cg1():
-    """Example Causal Graph 1"""
+    """Example Causal Graph 1:
+    A → B   D ← E
+    ↓   ↗ ↗
+    C → F
+    """
     np.random.seed(30)
     g = cgm.CG()
     A = g.node('A', 3)
@@ -22,15 +26,18 @@ def get_cg1():
     return g
 
 def get_cg2():
-    """Example Causal Graph 2"""
+    """Example Causal Graph 2:
+    season → rain → wet ← sprinkler
+                wet → slippery
+    """
     np.random.seed(30)
     g = cgm.CG()
     # Define all nodes
-    season    = g.node('season', 4)
-    rain      = g.node('rain', 2)
+    season = g.node('season', 4)
+    rain = g.node('rain', 2)
     sprinkler = g.node('sprinkler', 2)
-    wet       = g.node('wet', 2)
-    slippery  = g.node('slippery', 2)
+    wet = g.node('wet', 2)
+    slippery = g.node('slippery', 2)
 
     # Specify all parents of nodes
     g.P(season, values=np.array([.25, .25, .25, .25]))
@@ -40,7 +47,9 @@ def get_cg2():
     return g
 
 def get_chain_graph(n: int):
-    """Creates a chain graph A → B → C → ... of length n with binary nodes."""
+    """Creates a chain graph of length n with binary nodes:
+    A → B → C → ...
+    """
     np.random.seed(30)
     g = cgm.CG()
     # Create n binary nodes
@@ -52,7 +61,10 @@ def get_chain_graph(n: int):
     return g
 
 def get_fork_graph():
-    """Creates a fork graph A → (B,C) with binary nodes."""
+    """Creates a fork graph with binary nodes:
+    A → B
+    A → C
+    """
     np.random.seed(30)
     g = cgm.CG()
     A = g.node('A', 2)
@@ -61,11 +73,12 @@ def get_fork_graph():
     g.P(A)
     g.P(B | A)
     g.P(C | A)
-    
     return g
 
 def get_collider_graph():
-    """Creates a collider graph (A,B) → C with binary nodes."""
+    """Creates a collider graph with binary nodes:
+    A → C ← B
+    """
     np.random.seed(30)
     g = cgm.CG()
     A = g.node('A', 2)
@@ -74,11 +87,12 @@ def get_collider_graph():
     g.P(A)
     g.P(B)
     g.P(C | [A, B])
-    
     return g
 
 def get_disconnected_graph():
-    """Creates a graph with disconnected binary nodes A, B, C."""
+    """Creates a graph with disconnected binary nodes:
+    A  B  C
+    """
     np.random.seed(30)
     g = cgm.CG()
     A = g.node('A', 2)
@@ -87,5 +101,49 @@ def get_disconnected_graph():
     g.P(A)
     g.P(B)
     g.P(C)
+    return g
+
+def get_complex_graph():
+    r"""Creates a complex graph with multiple paths and diamond structures.
     
+    The graph structure is:
+                A
+              /   \
+             B     C
+           /  \   /  \
+          D    E F    G
+           \  / \    /
+            H   I   /
+             \     /
+              \   /
+                J
+    
+    All nodes are binary (2 states) for simplicity.
+    """
+    np.random.seed(30)
+    g = cgm.CG()
+    
+    # Create nodes
+    A = g.node('A', 2)
+    B = g.node('B', 2)
+    C = g.node('C', 2)
+    D = g.node('D', 2)
+    E = g.node('E', 2)
+    F = g.node('F', 2)
+    G = g.node('G', 2)
+    H = g.node('H', 2)
+    I = g.node('I', 2)
+    J = g.node('J', 2)
+    
+    # Define CPDs
+    g.P(A)  # Root node
+    g.P(B | A)
+    g.P(C | A)
+    g.P(D | B)
+    g.P(E | B)
+    g.P(F | C)
+    g.P(G | C)
+    g.P(H | [D, E])
+    g.P(I | E)
+    g.P(J | [H, G])
     return g
