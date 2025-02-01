@@ -157,7 +157,7 @@ def start_server() -> None:
         return
 
     def run_server():
-        uvicorn.run(_app, host="127.0.0.1", port=_port, log_level="info")
+        uvicorn.run(_app, host="127.0.0.1", port=_port, log_level="warning")
 
     _server_thread = threading.Thread(target=run_server, daemon=True)
     _server_thread.start()

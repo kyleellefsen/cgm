@@ -4,7 +4,6 @@
 import cgm
 import cgm.viz
 import numpy as np
-import numpy.typing as npt
 
 def test_conditioning_visualization():
     # Create a simple test graph

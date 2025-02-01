@@ -325,7 +325,7 @@ class GraphVisualization {
                 if (existingNode.isDragging) {
                     // Preserve all motion state during drag
                     Object.assign(existingNode, {
-                        ...node,
+                        ...node,  // This includes conditioned_state from server
                         width: nodeWidth,
                         height: this.nodeHeight,
                         x: existingNode.x,
@@ -336,9 +336,9 @@ class GraphVisualization {
                         vy: existingNode.vy
                     });
                 } else {
-                    // For non-dragged nodes, only preserve pinned state
+                    // For non-dragged nodes, preserve position but update state
                     const newNodeState = {
-                        ...node,
+                        ...node,  // This includes conditioned_state from server
                         width: nodeWidth,
                         height: this.nodeHeight
                     };
@@ -359,7 +359,7 @@ class GraphVisualization {
             } else {
                 // Add new node with initial position
                 const newNode = {
-                    ...node,
+                    ...node,  // This includes conditioned_state from server
                     x: this.width/2 + (Math.random() - 0.5) * 100,
                     y: this.height/2 + (Math.random() - 0.5) * 100,
                     fx: null,
@@ -440,7 +440,12 @@ class GraphVisualization {
         // Enter new nodes
         const nodeEnter = nodes.enter()
             .append("g")
-            .attr("class", d => `node ${d.type || 'node'}`);
+            .attr("class", d => {
+                const classes = ['node'];
+                if (d.type) classes.push(d.type);
+                if (d.conditioned_state >= 0) classes.push('conditioned');
+                return classes.join(' ');
+            });
             
         // Add basic elements to new nodes
         nodeEnter
