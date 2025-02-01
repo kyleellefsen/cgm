@@ -107,13 +107,15 @@ class GraphVisualization {
             .attr("d", "M0,-5L10,0L0,5")
             .attr("fill", "#999");
 
-        // Create force simulation
+        // Initialize simulation with gentler forces
         this.simulation = d3.forceSimulation()
             .force("link", d3.forceLink().id(d => d.id).distance(150))
-            .force("charge", d3.forceManyBody().strength(-500))
+            .force("charge", d3.forceManyBody().strength(-300))
             .force("collide", d3.forceCollide().radius(50))
-            .force("x", d3.forceX(this.width / 2).strength(0.05))
-            .force("y", d3.forceY(this.height / 2).strength(0.05))
+            .force("x", d3.forceX(this.width / 2).strength(0.03))
+            .force("y", d3.forceY(this.height / 2).strength(0.03))
+            .alphaDecay(0.02)  // Slower decay for smoother motion
+            .velocityDecay(0.3)  // More damping for stability
             .on("tick", () => this.tick());
             
         // Add containers for different elements
@@ -147,19 +149,25 @@ class GraphVisualization {
         if (!event.active) this.simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
-        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
+        d.isDragging = true;
+        event.sourceEvent.stopPropagation();
     }
 
     dragged(event, d) {
         d.fx = event.x;
         d.fy = event.y;
-        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
+        event.sourceEvent.stopPropagation();
     }
 
     dragended(event, d) {
         if (!event.active) this.simulation.alphaTarget(0);
-        // Keep nodes fixed where they are dropped
-        event.sourceEvent.stopPropagation();  // Prevent drag from interfering with updates
+        // Only keep position fixed if the node was explicitly pinned
+        if (!d.isPinned) {
+            d.fx = null;
+            d.fy = null;
+        }
+        d.isDragging = false;
+        event.sourceEvent.stopPropagation();
     }
 
     // Handle node selection and conditioning
@@ -314,20 +322,42 @@ class GraphVisualization {
             
             if (existingNode) {
                 // Update existing node while preserving position and state
-                const beforeUpdate = {...existingNode};
-                Object.assign(existingNode, {
-                    ...node,
-                    width: nodeWidth,
-                    height: this.nodeHeight,
-                    x: existingNode.x,
-                    y: existingNode.y,
-                    fx: existingNode.fx,
-                    fy: existingNode.fy,
-                    vx: existingNode.vx,
-                    vy: existingNode.vy
-                });
+                if (existingNode.isDragging) {
+                    // Preserve all motion state during drag
+                    Object.assign(existingNode, {
+                        ...node,
+                        width: nodeWidth,
+                        height: this.nodeHeight,
+                        x: existingNode.x,
+                        y: existingNode.y,
+                        fx: existingNode.fx,
+                        fy: existingNode.fy,
+                        vx: existingNode.vx,
+                        vy: existingNode.vy
+                    });
+                } else {
+                    // For non-dragged nodes, only preserve pinned state
+                    const newNodeState = {
+                        ...node,
+                        width: nodeWidth,
+                        height: this.nodeHeight
+                    };
+                    
+                    if (existingNode.isPinned) {
+                        newNodeState.fx = existingNode.x;
+                        newNodeState.fy = existingNode.y;
+                    } else {
+                        // Preserve some momentum for smoother updates
+                        newNodeState.x = existingNode.x;
+                        newNodeState.y = existingNode.y;
+                        newNodeState.vx = existingNode.vx * 0.5;
+                        newNodeState.vy = existingNode.vy * 0.5;
+                    }
+                    
+                    Object.assign(existingNode, newNodeState);
+                }
             } else {
-                // Add new node
+                // Add new node with initial position
                 const newNode = {
                     ...node,
                     x: this.width/2 + (Math.random() - 0.5) * 100,
@@ -373,11 +403,11 @@ class GraphVisualization {
         this.simulation
             .nodes(nodes)
             .force("link", d3.forceLink(links).id(d => d.id).distance(150))
-            .force("charge", d3.forceManyBody().strength(-500))
+            .force("charge", d3.forceManyBody().strength(-300))
             .force("collide", d3.forceCollide().radius(50))
-            .force("x", d3.forceX(this.width / 2).strength(0.05))
-            .force("y", d3.forceY(this.height / 2).strength(0.05))
-            .alpha(0.3)
+            .force("x", d3.forceX(this.width / 2).strength(0.03))
+            .force("y", d3.forceY(this.height / 2).strength(0.03))
+            .alpha(0.1)  // Gentler simulation restart
             .restart();
         
         // Update visual elements
