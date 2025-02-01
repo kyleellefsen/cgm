@@ -1,119 +1,135 @@
-"""This module provides a class for performing forward sampling on a graphical 
-model.
+"""This module provides functions for performing forward sampling on graphical models.
+
+The main sampling functions are:
+- forward_sample: Generate a single sample from a graph
+- get_n_samples: Generate multiple samples and return as a Factor
+- get_conditioned_samples: Generate samples respecting a GraphState's conditions
+
+All functions are pure and maintain immutability of inputs. Random state is 
+explicitly passed and split following JAX conventions for reproducibility.
 """
 import numpy as np
 import cgm
 
-SampleDict = dict[cgm.CG_Node, int]
-PartialSampleDict = dict[cgm.CG_Node, int|None]
 
-
-
-class ForwardSampler:
-    """A class for performing forward sampling on a graphical model.
-
-    Attributes:
-        cg (cgm.CG): The graphical model to perform forward sampling on.
-        nodes (list[cgm.CG_Node]): The list of nodes in the graphical model.
-        samples (cgm.Factor[cgm.CG_Node]): The factor representing the samples.
-        rng (np.random.Generator): The random number generator.
-
-    Example Usage:
-
-        cg = cgm.example_graphs.get_cg1()
-        sampler = cgm.ForwardSampler(cg, seed=30)
-        samples = sampler.get_n_samples(100)
-        print(samples.values)
+def forward_sample(
+    cg: cgm.CG,
+    key: np.random.Generator,
+    schema: cgm.GraphSchema | None = None,
+    state: cgm.GraphState | None = None
+) -> tuple[np.ndarray, np.random.Generator]:
+    """Generate a single sample from a graphical model.
     
-
-
-    """
-
-    def __init__(self, cg: cgm.CG, seed: int = 30):
-        """Initializes a ForwardSampler object.
-
-        Args:
-            cg (cgm.CG): The graphical model to perform forward sampling on.
-            seed (int): The seed for the random number generator.
-        """
-        self.cg: cgm.CG = cg
-        self.nodes: list[cgm.CG_Node] = cg.nodes
-        self.samples: cgm.Factor[cgm.CG_Node] = cgm.Factor[cgm.CG_Node].get_null()
-        self.rng = np.random.default_rng(seed)
-
-    def get_n_samples(self, num_samples: int):
-        """
-        Generates n samples from the graphical model.
-
-        Args:
-            num_samples (int): The number of samples to generate.
-
-        Returns:
-            cgm.Factor[cgm.CG_Node]: The factor representing the generated samples.
-        """
-        scope: list[cgm.CG_Node] = self.nodes
-        num_dims = tuple(n.num_states for n in scope)
-        self.samples = cgm.Factor[cgm.CG_Node](scope, np.zeros(num_dims, dtype=int))
-        for _ in range(num_samples):
-            sample, self.rng = self._forward_sample(self.rng)
-            idx: tuple[int, ...] = tuple(sample[v] for v in self.samples.scope)
-            self.samples.increment_at_index(idx, 1)
-        return self.samples
-
-    def get_sampled_marginal(self, nodes: set):
-        """
-        Computes the marginal count of the sampled nodes.
-
-        Args:
-            nodes (set): The set of nodes to compute the marginal count for.
-
-        Returns:
-            cgm.Factor[cgm.CG_Node]: The factor representing the computed marginal count.
-        """
-        return self.samples.marginalize(list(set(self.cg.nodes) - nodes))
-
-    def _forward_sample(self, rng: np.random.Generator) -> tuple[SampleDict, np.random.Generator]:
-        """
-        Performs forward sampling on the graphical model.
-
-        Args:
-            rng (np.random.Generator): The random number generator.
-
-        Returns:
-            SampleDict: The generated sample.
-        """
-        current_sample: PartialSampleDict = {n: None for n in self.cg.nodes}
-        for n in self.nodes:
-            current_sample, rng = self._sample_node(n, current_sample, rng)
-        populated_sample: SampleDict = {k: v for k, v in current_sample.items() if v is not None}
-        return populated_sample, rng
-
-    def _sample_node(self,
-                     node: cgm.CG_Node,
-                     current_sample: PartialSampleDict,
-                     rng: np.random.Generator) -> tuple[PartialSampleDict, np.random.Generator]:
-        """
-        Samples a node in the graphical model.
-
-        Args:
-            node (cgm.CG_Node): The node to sample.
-            rng (np.random.Generator): The random number generator.
-
-        Returns:
-            np.random.Generator: The updated random number generator.
-        """
-        for p in node.parents:
-            if current_sample[p] is None:
-                current_sample, rng = self._sample_node(p, current_sample, rng)
-        populated_sample = {k: v for k, v in current_sample.items() if v is not None}
-        parent_states = {n: populated_sample[n] for n in node.parents}
+    Args:
+        cg: The graphical model to sample from
+        key: Random number generator key
+        schema: Optional pre-computed schema (will be created if None)
+        state: Optional GraphState with conditions to respect
         
-        # Get the node's CPD and ensure it exists
-        cpd = self.cg.get_cpd(node)
+    Returns:
+        Tuple of:
+        - Array of sampled values, indexed by schema
+        - New random key for subsequent operations
+    """
+    # Initialize schema if not provided
+    if schema is None:
+        schema = cgm.GraphSchema.from_network(cg)
+        
+    # Pre-allocate array for this sample
+    sample = np.full(schema.num_vars, -1, dtype=np.int32)
+    
+    # If we have conditions, apply them first
+    if state is not None:
+        sample[state.mask] = state.values[state.mask]
+    
+    # Sample each unconditioned node in topological order
+    for node in cg.nodes:  # Already in topological order
+        node_idx = schema.var_to_idx[node.name]
+        
+        # Skip if this node is conditioned
+        if state is not None and state.mask[node_idx]:
+            continue
+            
+        # Get parent values using schema indexing
+        parent_states = {}
+        for parent in node.parents:
+            parent_idx = schema.var_to_idx[parent.name]
+            parent_states[parent] = sample[parent_idx]
+        
+        # Get node's CPD and sample
+        cpd = cg.get_cpd(node)
         if cpd is None:
             raise ValueError(f"Node {node.name} has no CPD")
             
         conditioned_node = cpd.condition(parent_states)
-        sample, rng = conditioned_node.sample(1, rng)
-        current_sample[node] = sample.item()
-        return current_sample, rng
+        node_sample, key = conditioned_node.sample(1, key)
+        sample[node_idx] = node_sample.item()
+        
+    return sample, key
+
+
+def get_n_samples(
+    cg: cgm.CG,
+    key: np.random.Generator,
+    num_samples: int,
+    state: cgm.GraphState | None = None,
+) -> tuple[cgm.Factor[cgm.CG_Node], np.random.Generator]:
+    """Generate multiple samples from a graphical model.
+    
+    Args:
+        cg: The graphical model to sample from
+        key: Random number generator key
+        num_samples: Number of samples to generate
+        state: Optional GraphState with conditions to respect
+        
+    Returns:
+        Tuple of:
+        - Factor containing counts of all generated samples
+        - New random key for subsequent operations
+    """
+    # Initialize
+    schema = cgm.GraphSchema.from_network(cg)
+    
+    # Pre-allocate array for all samples
+    samples_array = np.full((num_samples, schema.num_vars), -1, dtype=np.int32)
+    
+    # Generate all samples
+    for i in range(num_samples):
+        samples_array[i], key = forward_sample(cg, key, schema, state)
+    
+    # Convert to factor format
+    scope = cg.nodes  # Already in topological order
+    num_dims = tuple(n.num_states for n in scope)
+    samples_factor = cgm.Factor[cgm.CG_Node](scope, np.zeros(num_dims, dtype=int))
+    
+    # Count occurrences
+    for i in range(num_samples):
+        idx = tuple(samples_array[i, schema.var_to_idx[n.name]] for n in samples_factor.scope)
+        samples_factor.increment_at_index(idx, 1)
+        
+    return samples_factor, key
+
+
+def get_marginal_samples(
+    cg: cgm.CG,
+    key: np.random.Generator,
+    nodes: set[cgm.CG_Node],
+    num_samples: int,
+    state: cgm.GraphState | None = None,
+) -> tuple[cgm.Factor[cgm.CG_Node], np.random.Generator]:
+    """Generate samples and compute their marginal distribution over specified nodes.
+    
+    Args:
+        cg: The graphical model to sample from
+        key: Random number generator key
+        nodes: Set of nodes to compute marginal for
+        num_samples: Number of samples to generate
+        state: Optional GraphState with conditions to respect
+        
+    Returns:
+        Tuple of:
+        - Factor containing marginal counts over specified nodes
+        - New random key for subsequent operations
+    """
+    samples, key = get_n_samples(cg, key, num_samples, state)
+    return samples.marginalize(list(set(cg.nodes) - nodes)), key

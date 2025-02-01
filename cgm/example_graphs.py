@@ -55,7 +55,7 @@ def get_chain_graph(n: int):
     # Create n binary nodes
     nodes = [g.node(chr(65 + i), 2) for i in range(n)]
     # Create chain structure with priors and CPDs
-    g.P(nodes[0])  # Prior for first node
+    g.P(nodes[0], values=np.array([0.5, 0.5]))  # Uniform prior for first node
     for i in range(n-1):
         g.P(nodes[i+1] | nodes[i])  # Each node depends on previous
     return g
