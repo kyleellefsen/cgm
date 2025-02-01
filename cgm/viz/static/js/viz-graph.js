@@ -563,26 +563,4 @@ class GraphVisualization {
         }
         this.updatePanel(d);
     }
-}
-
-// Create instance when the script loads
-window.addEventListener('DOMContentLoaded', () => {
-    try {
-        window.graphViz = new GraphVisualization();
-    } catch (error) {
-        console.error("=== ERROR INITIALIZING GRAPH VISUALIZATION ===");
-        console.error(error);
-    }
-});
-
-// Add error handler for uncaught errors
-window.addEventListener('error', (event) => {
-    console.error("=== UNCAUGHT ERROR ===");
-    console.error(event.error);
-});
-
-// Add error handler for unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
-    console.error("=== UNHANDLED PROMISE REJECTION ===");
-    console.error(event.reason);
-}); 
+} 

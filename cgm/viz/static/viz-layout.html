@@ -27,51 +27,27 @@
     </div>
     <script src="/static/js/viz-graph.js"></script>
     <script>
-        // Wait for both DOM content and window load
-        let isDOMReady = false;
-        let isWindowLoaded = false;
-        let initAttempts = 0;
-        const maxAttempts = 3;
-
-        function tryInitialize() {
-            if (initAttempts >= maxAttempts) {
-                console.error('Failed to initialize after', maxAttempts, 'attempts');
-                return;
-            }
-            
-            try {
-                if (!window.graphViz) {
-                    console.log('Initializing GraphVisualization...');
+        // Initialize visualization after both DOM and resources are loaded
+        let initialized = false;
+        
+        function initializeViz() {
+            if (!initialized && !window.graphViz) {
+                try {
                     window.graphViz = new GraphVisualization();
-                    console.log('GraphVisualization initialized successfully');
+                    initialized = true;
+                } catch (error) {
+                    console.error('Failed to initialize visualization:', error);
                 }
-            } catch (error) {
-                console.error('Error initializing GraphVisualization:', error);
-                initAttempts++;
-                setTimeout(tryInitialize, 100);
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM Content Loaded');
-            isDOMReady = true;
-            if (isWindowLoaded) tryInitialize();
-        });
+        // Try to initialize after DOM content loads
+        document.addEventListener('DOMContentLoaded', initializeViz);
+        // Ensure initialization after all resources load
+        window.addEventListener('load', initializeViz);
 
-        window.addEventListener('load', () => {
-            console.log('Window Loaded');
-            isWindowLoaded = true;
-            if (isDOMReady) tryInitialize();
-        });
-
-        // Global error handlers
-        window.addEventListener('error', (event) => {
-            console.error('Script Error:', event.error);
-        });
-
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Unhandled Promise Rejection:', event.reason);
-        });
+        // Global error handler
+        window.addEventListener('error', event => console.error('Script Error:', event.error));
     </script>
 </body>
 </html>
