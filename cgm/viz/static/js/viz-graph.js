@@ -43,18 +43,85 @@ class Plot {
     }
 
     render() {
-        // Override in subclasses
-        console.warn("Base Plot render() called - override in subclass");
+        if (!this.data || !this.data.samples || !this.data.samples.length) {
+            console.warn("No data to render");
+            return;
+        }
+
+        console.log("Rendering plot with data:", this.data);  // Debug log
+        console.log("Container dimensions:", {
+            width: this.width,
+            height: this.height,
+            containerWidth: this.container.node().offsetWidth,
+            containerHeight: this.container.node().offsetHeight
+        });
+
+        // Count occurrences of each state
+        const counts = new Map();
+        this.data.samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+        
+        // Convert to probability
+        const probs = Array.from(counts.entries()).map(([state, count]) => ({
+            state,
+            probability: count / this.data.samples.length
+        }));
+        
+        // Sort by state
+        probs.sort((a, b) => a.state - b.state);
+
+        console.log("Probability data:", probs);  // Debug log
+
+        // Update scales
+        this.xScale
+            .domain(probs.map(d => d.state))
+            .range([0, this.width]);
+            
+        this.yScale
+            .domain([0, 1])
+            .range([this.height, 0]);
+            
+        // Update axes
+        this.xAxis.call(
+            d3.axisBottom(this.xScale)
+                .tickFormat(d => `State ${d}`)
+        );
+        this.yAxis.call(
+            d3.axisLeft(this.yScale)
+                .ticks(5)
+                .tickFormat(d3.format(".0%"))
+        );
+        
+        // Draw bars
+        const bars = this.plotGroup.selectAll(".bar")
+            .data(probs);
+            
+        // Remove old bars
+        bars.exit().remove();
+        
+        // Add new bars
+        const barsEnter = bars.enter()
+            .append("rect")
+            .attr("class", "bar")
+            .style("fill", "#4682b4");  // Add a default color
+            
+        // Update all bars
+        bars.merge(barsEnter)
+            .transition()
+            .duration(200)
+            .attr("x", d => this.xScale(d.state))
+            .attr("y", d => this.yScale(d.probability))
+            .attr("width", this.xScale.bandwidth())
+            .attr("height", d => this.height - this.yScale(d.probability));
     }
 }
 
 class DistributionPlot extends Plot {
     constructor(container, data) {
         super(container, data);
-        this.margin = {top: 40, right: 20, bottom: 40, left: 50};  // Increased margins for labels
-        this.xScale = d3.scaleLinear();
+        this.margin = {top: 40, right: 20, bottom: 40, left: 50};
+        this.xScale = d3.scaleBand()  // Use scaleBand for discrete states
+            .padding(0.1);
         this.yScale = d3.scaleLinear();
-        this.histogram = d3.histogram();
     }
 
     initialize() {
@@ -63,9 +130,10 @@ class DistributionPlot extends Plot {
         
         // Create SVG container with explicit dimensions
         this.svg = this.container.append("svg")
-            .attr("width", "100%")
-            .attr("height", "100%")
-            .style("overflow", "visible");  // Allow labels to overflow
+            .attr("width", this.width + this.margin.left + this.margin.right)
+            .attr("height", this.height + this.margin.top + this.margin.bottom)
+            .style("display", "block")  // Ensure SVG is displayed as block
+            .style("overflow", "visible");
             
         // Create plot group with margins
         this.plotGroup = this.svg.append("g")
@@ -93,50 +161,55 @@ class DistributionPlot extends Plot {
             .attr("text-anchor", "middle")
             .attr("x", this.width/2)
             .attr("y", this.height + 30)
-            .text("Value");
+            .text("State");
 
         this.plotGroup.append("text")
             .attr("class", "axis-label")
             .attr("text-anchor", "middle")
             .attr("transform", `translate(${-35},${this.height/2})rotate(-90)`)
-            .text("Frequency");
+            .text("Probability");
     }
 
     render() {
         const {samples, variable} = this.data;
         if (!samples || !samples.length) return;
 
+        // Count occurrences of each state
+        const counts = new Map();
+        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+        
+        // Convert to probability
+        const probs = Array.from(counts.entries()).map(([state, count]) => ({
+            state,
+            probability: count / samples.length
+        }));
+        
+        // Sort by state
+        probs.sort((a, b) => a.state - b.state);
+
         // Update scales
         this.xScale
-            .domain([0, d3.max(samples)])
+            .domain(probs.map(d => d.state))
             .range([0, this.width]);
             
-        // Generate histogram data
-        const bins = this.histogram
-            .domain(this.xScale.domain())
-            .thresholds(this.xScale.ticks(10))  // Reduced number of bins
-            (samples);
-            
-        // Update y scale based on histogram
         this.yScale
-            .domain([0, d3.max(bins, d => d.length)])
+            .domain([0, 1])  // Probabilities are between 0 and 1
             .range([this.height, 0]);
             
-        // Update axes with nicer ticks
+        // Update axes
         this.xAxis.call(
             d3.axisBottom(this.xScale)
-                .ticks(5)  // Reduced number of ticks
-                .tickFormat(d3.format(".1f"))
+                .tickFormat(d => `State ${d}`)
         );
         this.yAxis.call(
             d3.axisLeft(this.yScale)
                 .ticks(5)
-                .tickFormat(d3.format("d"))
+                .tickFormat(d3.format(".0%"))  // Show as percentages
         );
         
         // Draw bars
         const bars = this.plotGroup.selectAll(".bar")
-            .data(bins);
+            .data(probs);
             
         // Remove old bars
         bars.exit().remove();
@@ -150,10 +223,10 @@ class DistributionPlot extends Plot {
         bars.merge(barsEnter)
             .transition()
             .duration(200)
-            .attr("x", d => this.xScale(d.x0))
-            .attr("y", d => this.yScale(d.length))
-            .attr("width", d => Math.max(0, this.xScale(d.x1) - this.xScale(d.x0) - 1))
-            .attr("height", d => this.height - this.yScale(d.length));
+            .attr("x", d => this.xScale(d.state))
+            .attr("y", d => this.yScale(d.probability))
+            .attr("width", this.xScale.bandwidth())
+            .attr("height", d => this.height - this.yScale(d.probability));
     }
 }
 
@@ -182,10 +255,17 @@ class PlotManager {
     }
     
     createPlot(id, type, data) {
+        // First remove any existing plot with this id
+        this.removePlot(id);
+        
         const plotContainer = this.container.select(".plots-container")
             .append("div")
             .attr("class", "plot-container")
-            .attr("id", `plot-${id}`);
+            .attr("id", `plot-${id}`)
+            .style("width", "100%")
+            .style("height", "300px")  // Fixed height for plots
+            .style("position", "relative")
+            .style("margin-bottom", "10px");
             
         let plot;
         switch(type) {
@@ -198,6 +278,7 @@ class PlotManager {
         }
         
         this.plots.set(id, plot);
+        plot.render();  // Explicitly call render after creation
         return plot;
     }
     
@@ -422,29 +503,13 @@ class GraphVisualization {
         // Set up resizers
         this.setupResizers();
         
+        // Initialize plot manager
+        this.plotManager = new PlotManager();
+        
         // Start update loop
         this.startUpdateLoop();
         
         this.conditioned_vars = {};
-        
-        // Initialize plot manager
-        this.plotManager = new PlotManager();
-        
-        // Add test plot with dummy data - create a normal distribution
-        const normalData = Array.from({length: 1000}, () => {
-            // Box-Muller transform to generate normal distribution
-            const u1 = Math.random();
-            const u2 = Math.random();
-            const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-            return z + 2;  // Shift mean to 2
-        });
-        
-        const dummyData = {
-            variable: 'test',
-            title: 'Test Distribution',
-            samples: normalData
-        };
-        this.plotManager.createPlot('test', 'distribution', dummyData);
     }
 
     tick() {
@@ -651,7 +716,7 @@ class GraphVisualization {
                 .on("start", (e,d) => this.dragstarted(e,d))
                 .on("drag", (e,d) => this.dragged(e,d))
                 .on("end", (e,d) => this.dragended(e,d)))
-            .on("click", (e,d) => this.handleNodeClick(e,d));
+                .on("click", (e,d) => this.handleNodeClick(e,d));
             
         // Add ellipse first (background)
         nodeEnter.append("ellipse")
@@ -800,5 +865,49 @@ class GraphVisualization {
 
         // Apply initial highlighting if node is already conditioned
         this.updateTableHighlighting(d);
+
+        // Create temporary distribution data
+        const plotData = {
+            variable: d.id,
+            title: `Distribution for ${d.id}`,
+            samples: this.generateDummySamples(d)  // We'll replace this with real data later
+        };
+
+        // Clear any existing plots and create new one
+        this.plotManager.plots.forEach((plot, id) => {
+            this.plotManager.removePlot(id);
+        });
+        this.plotManager.createPlot('selected-node', 'distribution', plotData);
+    }
+
+    // Temporary method to generate dummy samples based on node state
+    generateDummySamples(node) {
+        const numSamples = 1000;
+        const samples = [];
+        const numStates = node.states;
+        
+        // If node is conditioned, generate samples mostly matching that state
+        if (node.conditioned_state >= 0) {
+            const prob = 0.8;  // 80% probability of matching conditioned state
+            for (let i = 0; i < numSamples; i++) {
+                if (Math.random() < prob) {
+                    samples.push(node.conditioned_state);
+                } else {
+                    // Randomly choose one of the other states
+                    let otherState;
+                    do {
+                        otherState = Math.floor(Math.random() * numStates);
+                    } while (otherState === node.conditioned_state);
+                    samples.push(otherState);
+                }
+            }
+        } else {
+            // If not conditioned, generate roughly uniform distribution
+            for (let i = 0; i < numSamples; i++) {
+                samples.push(Math.floor(Math.random() * numStates));
+            }
+        }
+        
+        return samples;
     }
 } 
