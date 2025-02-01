@@ -228,52 +228,7 @@ class GraphVisualization {
     }
 
     updatePanel(node) {
-        const panel = d3.select(".upper-panel");
-        
-        if (!node.cpd) {
-            panel.html(`
-                <div class="panel-header">Node ${node.id}</div>
-                <div class="panel-placeholder">No CPD available</div>
-            `);
-            return;
-        }
-
-        // Store the selected node for later updates
-        this.selectedNode = node;
-
-        // Use the actual CPD HTML from the server
-        panel.html(`
-            <div class="panel-header">CPD for ${node.id}</div>
-            <div class="cpd-content">
-                ${node.cpd}
-            </div>
-        `);
-
-        // Determine if this node has parents by checking for multiple rows
-        const table = panel.select(".cpd-table");
-        const hasParents = table.selectAll("tbody tr").size() > 1;
-        table.classed("no-parents", !hasParents);
-
-        // Add click handlers for state cells
-        panel.selectAll("[data-variable][data-value]")
-            .on("click", (event) => {
-                const cell = event.target;
-                const variable = cell.dataset.variable;
-                const value = parseInt(cell.dataset.value);
-                const currentState = parseInt(node.conditioned_state);
-                
-                // Only allow conditioning on the clicked node
-                if (variable === node.id) {
-                    const newState = currentState === value ? -1 : value;
-                    
-                    fetch(`/condition/${node.id}/${newState}`, { method: 'POST' })
-                        .then(() => this.fetchAndUpdateState())
-                        .catch(error => console.error('Condition failed:', error));
-                }
-            });
-
-        // Apply initial highlighting if node is already conditioned
-        this.updateTableHighlighting(node);
+        // This method has been moved into handleNodeClick
     }
 
     updateTableHighlighting(node) {
@@ -425,7 +380,7 @@ class GraphVisualization {
         if (this.selectedNode) {
             const updatedNode = newData.nodes.find(n => n.id === this.selectedNode.id);
             if (updatedNode) {
-                this.updateTableHighlighting(updatedNode);
+                this.handleNodeClick(null, updatedNode);
             }
         }
     }
@@ -561,6 +516,51 @@ class GraphVisualization {
             event.preventDefault();
             event.stopPropagation();
         }
-        this.updatePanel(d);
+        const panel = d3.select(".upper-panel");
+        
+        if (!d.cpd) {
+            panel.html(`
+                <div class="panel-header">Node ${d.id}</div>
+                <div class="panel-placeholder">No CPD available</div>
+            `);
+            return;
+        }
+
+        // Store the selected node for later updates
+        this.selectedNode = d;
+
+        // Use the actual CPD HTML from the server
+        panel.html(`
+            <div class="panel-header">CPD for ${d.id}</div>
+            <div class="cpd-content">
+                ${d.cpd}
+            </div>
+        `);
+
+        // Determine if this node has parents by checking for multiple rows
+        const table = panel.select(".cpd-table");
+        const hasParents = table.selectAll("tbody tr").size() > 1;
+        table.classed("no-parents", !hasParents);
+
+        // Add click handlers for state cells
+        panel.selectAll("[data-variable][data-value]")
+            .on("click", (event) => {
+                const cell = event.target;
+                const variable = cell.dataset.variable;
+                const value = parseInt(cell.dataset.value);
+                const currentState = parseInt(d.conditioned_state);
+                
+                // Only allow conditioning on the clicked node
+                if (variable === d.id) {
+                    const newState = currentState === value ? -1 : value;
+                    
+                    fetch(`/condition/${d.id}/${newState}`, { method: 'POST' })
+                        .then(() => this.fetchAndUpdateState())
+                        .catch(error => console.error('Condition failed:', error));
+                }
+            });
+
+        // Apply initial highlighting if node is already conditioned
+        this.updateTableHighlighting(d);
     }
 } 
