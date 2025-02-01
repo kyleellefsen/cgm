@@ -28,6 +28,7 @@ class Node(BaseModel):
     id: str
     states: int
     cpd: Optional[str] = None
+    conditioned_state: Optional[int] = None
 
 class Link(BaseModel):
     source: str
@@ -77,7 +78,8 @@ async def get_state() -> Dict:
         node_data = {
             "id": node.name,
             "states": node.num_states,
-            "type": "effect"  # Default type
+            "type": "effect",
+            "conditioned_state": -1  # Default value for all nodes
         }
 
         # Add CPD table if available
@@ -86,14 +88,14 @@ async def get_state() -> Dict:
             table_html = cpd.table.html()
             node_data["cpd"] = table_html
 
-        # Add conditioning information if available
+        # Override conditioned_state if actually conditioned
         if _graph_state is not None:
             idx = _graph_state.schema.var_to_idx[node.name]
             if _graph_state.mask[idx]:
                 value = _graph_state.values[idx]
-                if value != -1:  # Only set conditioned_state if value is valid
+                if value != -1:
                     node_data["conditioned_state"] = int(value)
-                    print(f"Node {node.name} is conditioned to state {value}")
+                    print(f"Node {node.name} conditioned to {value}")
 
         nodes.append(node_data)
         print(f"Added node: {node_data['id']}, conditioned_state: {node_data.get('conditioned_state')}")

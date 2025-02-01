@@ -165,39 +165,10 @@ class GraphVisualization {
     }
 
     // Handle node selection and conditioning
-    handleNodeClick(event, d) {
-        event.stopPropagation();
-        
-        console.log(`Node ${d.id} clicked:`, {
-            currentState: d.conditioned_state,
-            willTransitionTo: d.conditioned_state === 0 ? -1 : 0
-        });
-        
-        // Remove selection class from all nodes
-        this.nodesGroup.selectAll(".node")
-            .classed("selected", false);
-        
-        // Add selection class to clicked node
-        d3.select(event.currentTarget).classed("selected", true);
-        this.selectedNode = d;
-        
-        // Update panel
+    handleNodeClick(e, d) {
+        e.stopPropagation();
         this.updatePanel(d);
-        
-        // Toggle node conditioning
-        const newState = d.conditioned_state === 0 ? -1 : 0;
-        console.log(`Sending condition request for node ${d.id}:`, {
-            newState,
-            url: `/condition/${d.id}/${newState}`
-        });
-        
-        fetch(`/condition/${d.id}/${newState}`, {
-            method: 'POST'
-        }).then(() => {
-            console.log(`Condition request completed for node ${d.id}, fetching new state`);
-            // Refresh graph state after conditioning
-            this.fetchAndUpdateState();
-        });
+        e.sourceEvent.stopPropagation();
     }
     
     // Update panel with CPD table
@@ -207,15 +178,54 @@ class GraphVisualization {
         if (!node.cpd) {
             panel.html(`
                 <div class="panel-header">Node ${node.id}</div>
-                <div class="panel-placeholder">No CPD available for this node</div>
+                <div class="panel-placeholder">No CPD available</div>
             `);
             return;
         }
-        
+
+        // Generate clickable CPD table
         panel.html(`
-            <div class="panel-header">CPD for Node ${node.id}</div>
-            <div class="cpd-content">${node.cpd}</div>
+            <div class="panel-header">CPD for ${node.id}</div>
+            <div class="cpd-table">
+                <table>
+                    ${this.generateCPDRows(node)}
+                </table>
+            </div>
         `);
+
+        // Add click handlers for state cells
+        panel.selectAll(".state-cell")
+            .on("click", (event, d) => {
+                const state = event.target.dataset.state;
+                const currentState = parseInt(node.conditioned_state);
+                const newState = currentState === parseInt(state) ? -1 : parseInt(state);
+                
+                fetch(`/condition/${node.id}/${newState}`, { method: 'POST' })
+                    .then(() => this.fetchAndUpdateState())
+                    .catch(error => console.error('Condition failed:', error));
+            });
+    }
+    
+    generateCPDRows(node) {
+        // Simple example - adapt based on your actual CPD structure
+        return `
+            <tr>
+                <th>State</th>
+                <th>Probability</th>
+            </tr>
+            ${Array.from({length: node.states}, (_, i) => `
+                <tr>
+                    <td class="state-cell" 
+                        data-variable="${node.id}" 
+                        data-state="${i}"
+                        style="cursor: pointer;
+                               background: ${node.conditioned_state === i ? '#e0f2fe' : ''}">
+                        State ${i}
+                    </td>
+                    <td>${(Math.random().toFixed(2))}</td>
+                </tr>
+            `).join('')}
+        `;
     }
     
     // Update the visual elements based on simulation state
@@ -398,25 +408,6 @@ class GraphVisualization {
             .attr("rx", d => d.width / 2)
             .attr("ry", d => d.height / 2);
             
-        // Add conditioned circle on top
-        nodeEnter.append("circle")
-            .attr("class", "conditioned")
-            .attr("r", d => Math.min(d.width, d.height) * 0.6)
-            .style("stroke", "#2563eb")
-            .style("stroke-width", "4px")
-            .style("fill", "none")
-            .style("opacity", d => {
-                const isConditioned = d.conditioned_state >= 0;
-                console.log(`Setting initial circle opacity for node ${d.id}:`, {
-                    conditioned_state: d.conditioned_state,
-                    isConditioned,
-                    opacity: isConditioned ? 1 : 0,
-                    element: 'circle.conditioned'
-                });
-                return isConditioned ? 1 : 0;
-            })
-            .style("display", "block");
-            
         // Add text label on top
         nodeEnter.append("text")
             .attr("class", "node-label")
@@ -428,34 +419,18 @@ class GraphVisualization {
         // Update node elements
         allNodes.each(function(d) {
             const node = d3.select(this);
-            
-            // Update ellipse
-            node.select("ellipse")
-                .attr("rx", d.width / 2)
-                .attr("ry", d.height / 2);
-                
-            // Update conditioned circle
-            const circle = node.select("circle.conditioned");
             const isConditioned = d.conditioned_state >= 0;
             
-            console.log(`Updating circle for node ${d.id}:`, {
-                conditioned_state: d.conditioned_state,
-                isConditioned,
-                newOpacity: isConditioned ? 1 : 0,
-                currentStyle: {
-                    opacity: circle.style("opacity"),
-                    display: circle.style("display"),
-                    stroke: circle.style("stroke"),
-                    'stroke-width': circle.style("stroke-width")
-                }
-            });
+            // Toggle 'conditioned' class
+            node.classed("conditioned", isConditioned);
             
-            circle
-                .attr("r", Math.min(d.width, d.height) * 0.6)
-                .style("opacity", isConditioned ? 1 : 0)
-                .style("stroke", "#2563eb")
-                .style("stroke-width", "4px")
-                .style("fill", "none");
+            // Update ellipse styling
+            node.select("ellipse")
+                .attr("rx", d.width / 2)
+                .attr("ry", d.height / 2)
+                .style("stroke", isConditioned ? "#ea580c" : "#94a3b8")
+                .style("fill", isConditioned ? "#ffedd5" : "white")
+                .style("stroke-width", isConditioned ? "3px" : "2px");
                 
             // Update text
             node.select("text.node-label")

@@ -1,6 +1,6 @@
 # This isn't a pytest, it has to be run manually
 # The command to run it is:
-# python -m tests.viz.test_conditioning
+# python -m tests.viz.conditioning
 import cgm
 import cgm.viz
 import numpy as np
@@ -35,6 +35,9 @@ def test_conditioning_visualization():
     print("   - Check CPD tables for other nodes - relevant rows should be highlighted")
     print("   - Try clicking 'sprinkler' node to toggle its conditioning")
     input("Press Enter to finish...")
+    
+    assert state.values[state.schema.var_to_idx['rain']] == 1
+    assert state.mask[state.schema.var_to_idx['rain']] == True
 
 if __name__ == "__main__":
     test_conditioning_visualization()

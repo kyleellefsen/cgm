@@ -39,7 +39,8 @@ body {
 
 /* Graph elements */
 .node ellipse {
-    stroke-width: 3px;
+    stroke: #94a3b8;
+    stroke-width: 2px;
     fill: white;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -68,21 +69,19 @@ body {
 
 /* Conditioned circle styles */
 .node circle.conditioned {
-    fill: none;
-    stroke: #2563eb;
-    stroke-width: 4px;
-    pointer-events: none;
-    z-index: 10;
-    position: relative;
-    opacity: 1;
-    visibility: visible;
+    display: none !important;
 }
 
-/* Ensure the circle is visible when display is set to block */
-.node circle.conditioned[style*="display: block"] {
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
+/* New conditioned node styles */
+.node.conditioned ellipse {
+    stroke: #ea580c;
+    stroke-width: 3px;
+    fill: #ffedd5;
+}
+
+/* Update CPD table highlighting */
+.state-cell[style*="background: rgb(224, 242, 254)"] {
+    background: #ffedd5 !important; /* Change blue to orange */
 }
 
 /* New styles for selected node */
@@ -93,7 +92,7 @@ body {
 }
 
 .link {
-    stroke: #999;
+    stroke: #64748b;
     stroke-opacity: 0.6;
     stroke-width: 2px;
     marker-end: url(#arrowhead);
