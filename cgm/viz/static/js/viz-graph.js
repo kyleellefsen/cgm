@@ -181,27 +181,70 @@ class GraphVisualization {
             return;
         }
 
-        // Generate clickable CPD table
+        // Store the selected node for later updates
+        this.selectedNode = node;
+
+        // Use the actual CPD HTML from the server
         panel.html(`
             <div class="panel-header">CPD for ${node.id}</div>
-            <div class="cpd-table">
-                <table>
-                    ${this.generateCPDRows(node)}
-                </table>
+            <div class="cpd-content">
+                ${node.cpd}
             </div>
         `);
 
+        // Determine if this node has parents by checking for multiple rows
+        const table = panel.select(".cpd-table");
+        const hasParents = table.selectAll("tbody tr").size() > 1;
+        table.classed("no-parents", !hasParents);
+
         // Add click handlers for state cells
-        panel.selectAll(".state-cell")
-            .on("click", (event, d) => {
-                const state = event.target.dataset.state;
+        panel.selectAll("[data-variable][data-value]")
+            .on("click", (event) => {
+                const cell = event.target;
+                const variable = cell.dataset.variable;
+                const value = parseInt(cell.dataset.value);
                 const currentState = parseInt(node.conditioned_state);
-                const newState = currentState === parseInt(state) ? -1 : parseInt(state);
                 
-                fetch(`/condition/${node.id}/${newState}`, { method: 'POST' })
-                    .then(() => this.fetchAndUpdateState())
-                    .catch(error => console.error('Condition failed:', error));
+                // Only allow conditioning on the clicked node
+                if (variable === node.id) {
+                    const newState = currentState === value ? -1 : value;
+                    
+                    fetch(`/condition/${node.id}/${newState}`, { method: 'POST' })
+                        .then(() => this.fetchAndUpdateState())
+                        .catch(error => console.error('Condition failed:', error));
+                }
             });
+
+        // Apply initial highlighting if node is already conditioned
+        this.updateTableHighlighting(node);
+    }
+
+    // Update table highlighting based on node's conditioning state
+    updateTableHighlighting(node) {
+        const table = d3.select(".cpd-table");
+        if (!table.node()) return;  // Exit if no table is displayed
+
+        // Clear any existing highlighting
+        table.selectAll("td, th").classed("state-active", false);
+
+        const currentState = parseInt(node.conditioned_state);
+        if (currentState === -1) return;  // No highlighting needed
+
+        const hasParents = !table.classed("no-parents");
+        
+        if (hasParents) {
+            // For nodes with parents, highlight cells and header showing the current state
+            table.selectAll(`td[data-variable="${node.id}"][data-value="${currentState}"], 
+                           th[data-variable="${node.id}"][data-value="${currentState}"]`)
+                .classed("state-active", true);
+        } else {
+            // For nodes without parents, highlight the column corresponding to the state
+            // Add 1 to account for the label column
+            const stateColumn = currentState + 1;
+            table.selectAll(`td:nth-child(${stateColumn}), 
+                           th:nth-child(${stateColumn})`)
+                .classed("state-active", true);
+        }
     }
     
     generateCPDRows(node) {
@@ -339,6 +382,14 @@ class GraphVisualization {
         
         // Update visual elements
         this.updateVisuals();
+
+        // Update any open CPD table
+        if (this.selectedNode) {
+            const updatedNode = newData.nodes.find(n => n.id === this.selectedNode.id);
+            if (updatedNode) {
+                this.updateTableHighlighting(updatedNode);
+            }
+        }
     }
     
     // Update visual elements without touching simulation

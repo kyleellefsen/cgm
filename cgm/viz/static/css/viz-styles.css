@@ -109,11 +109,17 @@ body {
     padding: 2rem;
 }
 
+.cpd-content {
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
 .cpd-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 1rem;
+    margin: 0 auto;
     font-family: monospace;
+    font-size: 0.9rem;
 }
 
 .cpd-table th,
@@ -121,23 +127,43 @@ body {
     padding: 0.5rem;
     border: 1px solid #e5e7eb;
     text-align: right;
+    transition: background-color 0.2s;
 }
 
 .cpd-table th {
     background: #f3f4f6;
     font-weight: 600;
+    text-align: center;
 }
 
-.cpd-content {
-    overflow-x: auto;
-    display: flex;
+/* Make headers with data attributes clickable */
+.cpd-table th[data-variable] {
+    cursor: pointer;
 }
 
-.cpd-content table {
-    white-space: nowrap;
-    width: auto;
-    margin-right: auto;
-    flex-shrink: 0;
+.cpd-table th[data-variable]:hover {
+    background-color: #fee2e2;
+}
+
+/* Highlight headers and cells for nodes without parents */
+.cpd-table.no-parents th.state-active,
+.cpd-table.no-parents td.state-active {
+    background-color: #ffedd5;
+}
+
+/* Highlight headers and cells for nodes with parents */
+.cpd-table:not(.no-parents) th[data-variable].state-active,
+.cpd-table:not(.no-parents) td[data-variable].state-active {
+    background-color: #ffedd5;
+}
+
+/* Make cells with data attributes clickable */
+.cpd-table td[data-variable] {
+    cursor: pointer;
+}
+
+.cpd-table td[data-variable]:hover {
+    background-color: #fee2e2;
 }
 
 .panel-header {
@@ -146,17 +172,4 @@ body {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #e5e7eb;
-}
-
-.cpd-table tr {
-    transition: opacity 0.2s;
-}
-
-.cpd-table tr:not(.active) {
-    opacity: 0.4;
-}
-
-.cpd-table tr.active {
-    opacity: 1;
-    background-color: #f0f9ff;
 }

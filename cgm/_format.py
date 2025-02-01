@@ -284,25 +284,40 @@ def _format_cpd_as_html(cpd: 'CPD') -> str:
     
     # Add header cells with variable names
     for parent in parents:
-        html += f'      <th data-variable="{parent.name}">{parent.name}</th>\n'
+        html += f'      <th>{parent.name}</th>\n'
     for i in range(child.num_states):
-        html += f'      <th data-variable="{child.name}">{child.name}<sup>{i}</sup></th>\n'
+        html += (f'      <th data-variable="{child.name}" data-value="{i}" '
+                f'title="Click to condition {child.name}={i}">'
+                f'{child.name}<sup>{i}</sup></th>\n')
     html += "    </tr>\n  </thead>\n"
     
     html += "  <tbody>\n"
-    for idx in itertools.product(*[range(p.num_states) for p in parents]):
+    for parent_vals in itertools.product(*[range(p.num_states) for p in parents]):
         html += "    <tr>\n"
         # Add parent states with data attributes
         for i, parent in enumerate(parents):
-            html += f'      <td data-variable="{parent.name}" data-value="{idx[i]}">{idx[i]}</td>\n'
+            state = parent_vals[i]
+            html += (f'      <td data-variable="{parent.name}" data-value="{state}" '
+                    f'title="Click to condition {parent.name}={state}">'
+                    f'{parent.name}<sup>{state}</sup></td>\n')
         
         # Get probabilities for this configuration
-        selector = [idx[parents.index(p)] if p in parents else slice(None) for p in cpd.scope]
-        probs = cpd.values[tuple(selector)]
+        # Create selector array of correct size
+        selector = [0] * len(cpd.scope)
+        # Fill in parent values
+        for parent, val in zip(parents, parent_vals):
+            parent_dim = cpd.scope.index(parent)
+            selector[parent_dim] = val
+        # Get child probabilities
+        child_dim = cpd.scope.index(child)
+        probs = [cpd.values[tuple(selector[:child_dim] + [j] + selector[child_dim+1:])]
+                for j in range(child.num_states)]
         
-        # Add probability cells
+        # Add probability cells for child variable
         for j in range(child.num_states):
-            html += f'      <td data-variable="{child.name}" data-value="{j}">{probs[j]:.3f}</td>\n'
+            html += (f'      <td data-variable="{child.name}" data-value="{j}" '
+                    f'title="Click to condition {child.name}={j}">'
+                    f'{probs[j]:.3f}</td>\n')
         html += "    </tr>\n"
     html += "  </tbody>\n</table>"
     
