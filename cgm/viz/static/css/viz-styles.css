@@ -61,9 +61,8 @@ body {
 
 /* New conditioned node styles */
 .node.conditioned ellipse {
-    stroke: #ea580c;
-    stroke-width: 3px;
-    fill: #ffedd5;
+    stroke: #16a34a;
+    fill: #dcfce7;
 }
 
 /* Update CPD table highlighting */

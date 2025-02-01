@@ -11,6 +11,8 @@ def test_conditioning_visualization():
     
     # Start visualization
     cgm.viz.show(g, open_new_browser_window=True)
+    print(cgm.viz.conditioned_nodes)
+    cgm.viz.condition('season', 0)
     
     print("\nVisual Inspection Test Steps:")
     print("1. Initial State")
@@ -37,6 +39,18 @@ def test_conditioning_visualization():
     
     assert state.values[state.schema.var_to_idx['rain']] == 1
     assert state.mask[state.schema.var_to_idx['rain']] == True
+
+def test_state_passing():
+    """This test is to check that the graphstate (conditioned nodes) get 
+    passed back and forth correctly.
+    """
+
+    g = cgm.example_graphs.get_cg2()  # Using rain/sprinkler/grass example
+    cgm.viz.show(g, open_new_browser_window=True)
+    assert cgm.viz.conditioned_nodes() == {}
+    cgm.viz.condition('rain', 0)
+    assert cgm.viz.conditioned_nodes() == {'rain': 0}
+
 
 if __name__ == "__main__":
     test_conditioning_visualization()
