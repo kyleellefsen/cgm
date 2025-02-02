@@ -233,3 +233,88 @@ def test_conditioned_child_with_unconditioned_parent():
         expected = np.zeros(2)  # Binary nodes
         expected[expected_value] = 1.0
         npt.assert_allclose(dist, expected)
+
+
+def test_sample_array():
+    """Test the SampleArray class functionality."""
+    # Create a simple graph for testing
+    cg = cgm.example_graphs.get_chain_graph(3)  # A->B->C
+    schema = cgm.GraphSchema.from_network(cg)
+    
+    # Test valid initialization
+    num_samples = 5
+    values = np.array([
+        [0, 1, 0],  # Sample 1: A=0, B=1, C=0
+        [1, 1, 1],  # Sample 2: A=1, B=1, C=1
+        [0, 0, 0],  # Sample 3: A=0, B=0, C=0
+        [1, 0, 1],  # Sample 4: A=1, B=0, C=1
+        [0, 1, 1],  # Sample 5: A=0, B=1, C=1
+    ])
+    samples = cgm.inference.approximate.sampling.SampleArray(values, schema)
+    
+    # Test shape property
+    assert samples.shape == (num_samples, schema.num_vars)
+    
+    # Test conversion to factor
+    factor = samples.to_factor()
+    
+    # Verify factor has correct scope
+    assert len(factor.scope) == schema.num_vars
+    assert [node.name for node in factor.scope] == [node.name for node in schema.nodes]
+    
+    # Verify factor values match sample counts
+    # Get total counts for each configuration
+    unique_samples, counts = np.unique(values, axis=0, return_counts=True)
+    
+    # Verify each unique sample has correct count in factor
+    for sample, count in zip(unique_samples, counts):
+        idx = tuple(sample)
+        assert factor.values[idx] == count, f"Sample {sample} should have count {count}"
+    
+    # Test error cases
+    # Wrong number of dimensions
+    with pytest.raises(ValueError, match="Samples must be a 2D array"):
+        cgm.inference.approximate.sampling.SampleArray(
+            values.reshape(-1),  # 1D array
+            schema
+        )
+    
+    # Wrong number of variables
+    with pytest.raises(ValueError, match="Sample array has .* variables but schema has"):
+        cgm.inference.approximate.sampling.SampleArray(
+            values[:, :2],  # Only 2 variables
+            schema
+        )
+
+
+def test_sample_array_return():
+    """Test that sampling functions can return SampleArray."""
+    cg = cgm.example_graphs.get_chain_graph(3)  # A->B->C
+    key = np.random.default_rng(42)
+    
+    # Test get_n_samples with array return
+    samples, _ = cgm.inference.get_n_samples(cg, key, num_samples=100, return_array=True)
+    assert isinstance(samples, cgm.inference.approximate.sampling.SampleArray)
+    assert samples.shape == (100, 3)  # 100 samples, 3 variables
+    
+    # Test get_marginal_samples with array return
+    nodes = {cg.nodes[0], cg.nodes[1]}  # A and B
+    marginal, _ = cgm.inference.get_marginal_samples(
+        cg, key, nodes, num_samples=100, return_array=True
+    )
+    assert isinstance(marginal, cgm.inference.approximate.sampling.SampleArray)
+    assert marginal.shape == (100, 2)  # 100 samples, 2 variables
+    assert set(node.name for node in marginal.schema.nodes) == {node.name for node in nodes}
+    
+    # Test that default still returns Factor
+    factor, _ = cgm.inference.get_n_samples(cg, key, num_samples=100)
+    assert isinstance(factor, cgm.Factor)
+    
+    # Test conditioning with array return
+    state = cg.condition(A=1)
+    samples, _ = cgm.inference.get_n_samples(
+        cg, key, num_samples=100, state=state, return_array=True
+    )
+    assert isinstance(samples, cgm.inference.approximate.sampling.SampleArray)
+    # Verify all samples have A=1
+    assert np.all(samples.values[:, samples.schema.var_to_idx['A']] == 1)

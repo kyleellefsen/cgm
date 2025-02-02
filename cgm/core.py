@@ -952,6 +952,8 @@ class GraphSchema:
     var_to_states: dict[str, int]
     # Total number of variables in the schema
     num_vars: int
+    # The actual nodes in the graph, in topological order
+    nodes: list[CG_Node]
 
     @classmethod
     def from_network(cls, network: CG) -> 'GraphSchema':
@@ -969,7 +971,8 @@ class GraphSchema:
         return cls(
             var_to_idx=var_to_idx,
             var_to_states=var_to_states,
-            num_vars=len(nodes)
+            num_vars=len(nodes),
+            nodes=nodes
         )
 
     def validate_states(self, data: npt.NDArray[np.number]) -> None:

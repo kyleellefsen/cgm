@@ -11,7 +11,8 @@ explicitly passed and split following JAX conventions for reproducibility.
 import dataclasses
 import numpy as np
 import cgm
-from typing import Optional
+from typing import Optional, Union
+import typing
 
 
 class InvalidForwardSamplingError(Exception):
@@ -22,6 +23,58 @@ class InvalidForwardSamplingError(Exception):
     all ancestors of conditioned nodes to also be conditioned.
     """
     pass
+
+
+@dataclasses.dataclass(frozen=True)
+class SampleArray:
+    """High-performance storage for samples from a graphical model.
+    
+    Stores samples in a simple (num_samples, num_vars) array where each column
+    corresponds to a variable in the graph's schema. Similar to JAX DeviceArray
+    and PyTorch Tensor, this is a minimal container focused on efficient storage
+    and basic operations.
+    
+    The samples array is immutable (frozen) to maintain functional purity and
+    enable future optimizations like parallelization and JIT compilation.
+    
+    Args:
+        values: (num_samples, num_vars) array of samples
+        schema: GraphSchema defining the variable ordering
+    """
+    values: np.ndarray  # Shape: (num_samples, num_vars) 
+    schema: cgm.GraphSchema
+
+    def __post_init__(self):
+        if self.values.ndim != 2:
+            raise ValueError("Samples must be a 2D array")
+        if self.values.shape[1] != self.schema.num_vars:
+            raise ValueError(
+                f"Sample array has {self.values.shape[1]} variables but schema "
+                f"has {self.schema.num_vars}"
+            )
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Return the shape of the samples array."""
+        return self.values.shape
+
+    def to_factor(self) -> cgm.Factor[cgm.CG_Node]:
+        """Convert samples to a Factor for compatibility with existing code.
+        
+        Uses the actual nodes from the schema instead of creating temporary ones,
+        ensuring that node identity is preserved for operations like marginalization.
+        """
+        # Initialize factor with zeros using the actual nodes from schema
+        factor = cgm.Factor[cgm.CG_Node](self.schema.nodes, values=0)
+        
+        # Count samples into factor
+        for i in range(self.shape[0]):
+            # Get sample and ensure it's a tuple of ints for indexing
+            sample_row: np.ndarray = self.values[i]
+            index_tuple: tuple[int, ...] = tuple(map(int, sample_row))
+            factor.increment_at_index(index_tuple, 1)
+            
+        return factor
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,11 +163,9 @@ def forward_sample(
     Args:
         cg: The graphical model to sample from
         key: Random number generator key
-        schema: Optional pre-computed schema (will be created if None)
+        schema: Optional GraphSchema defining variable ordering
         state: Optional GraphState with conditions to respect
-        certificate: Optional certificate validating the state is suitable for
-            forward sampling. If state is provided but certificate is None,
-            validation will be performed.
+        certificate: Optional certificate validating the state
         
     Returns:
         Tuple of:
@@ -150,7 +201,7 @@ def forward_sample(
         if state is not None and state.mask[node_idx]:
             continue
             
-        # Get parent values using schema indexing
+        # Get parent values
         parent_states = {}
         for parent in node.parents:
             parent_idx = schema.var_to_idx[parent.name]
@@ -161,8 +212,12 @@ def forward_sample(
         if cpd is None:
             raise ValueError(f"Node {node.name} has no CPD")
             
-        conditioned_node = cpd.condition(parent_states)
-        node_sample, key = conditioned_node.sample(1, key)
+        # Get conditional distribution for these parent values
+        if parent_states:
+            cpd = cpd.condition(parent_states)
+            
+        # Sample from the (conditional) distribution
+        node_sample, key = cpd.sample(1, key)
         sample[node_idx] = node_sample.item()
         
     return sample, key
@@ -173,8 +228,9 @@ def get_n_samples(
     key: np.random.Generator,
     num_samples: int,
     state: cgm.GraphState | None = None,
-    certificate: Optional[ForwardSamplingCertificate] = None
-) -> tuple[cgm.Factor[cgm.CG_Node], np.random.Generator]:
+    certificate: Optional[ForwardSamplingCertificate] = None,
+    return_array: bool = False
+) -> tuple[Union[cgm.Factor[cgm.CG_Node], SampleArray], np.random.Generator]:
     """Generate multiple samples from a graphical model.
     
     Args:
@@ -182,20 +238,15 @@ def get_n_samples(
         key: Random number generator key
         num_samples: Number of samples to generate
         state: Optional GraphState with conditions to respect
-        certificate: Optional certificate validating the state is suitable for
-            forward sampling. If state is provided but certificate is None,
-            validation will be performed.
+        certificate: Optional certificate validating the state
+        return_array: If True, return a SampleArray instead of Factor
         
     Returns:
         Tuple of:
-        - Factor containing counts of all generated samples
+        - Either Factor containing counts or SampleArray containing raw samples
         - New random key for subsequent operations
-        
-    Raises:
-        InvalidForwardSamplingError: If state is provided without a valid certificate
-            and validation fails
     """
-    # Initialize
+    # Initialize schema
     schema = cgm.GraphSchema.from_network(cg)
     
     # Pre-allocate array for all samples
@@ -205,17 +256,13 @@ def get_n_samples(
     for i in range(num_samples):
         samples_array[i], key = forward_sample(cg, key, schema, state, certificate)
     
-    # Convert to factor format
-    scope = cg.nodes  # Already in topological order
-    num_dims = tuple(n.num_states for n in scope)
-    samples_factor = cgm.Factor[cgm.CG_Node](scope, np.zeros(num_dims, dtype=int))
+    # Create sample array
+    samples = SampleArray(samples_array, schema)
     
-    # Count occurrences
-    for i in range(num_samples):
-        idx = tuple(samples_array[i, schema.var_to_idx[n.name]] for n in samples_factor.scope)
-        samples_factor.increment_at_index(idx, 1)
-        
-    return samples_factor, key
+    if return_array:
+        return samples, key
+    else:
+        return samples.to_factor(), key
 
 
 def get_marginal_samples(
@@ -224,8 +271,9 @@ def get_marginal_samples(
     nodes: set[cgm.CG_Node],
     num_samples: int,
     state: cgm.GraphState | None = None,
-    certificate: Optional[ForwardSamplingCertificate] = None
-) -> tuple[cgm.Factor[cgm.CG_Node], np.random.Generator]:
+    certificate: Optional[ForwardSamplingCertificate] = None,
+    return_array: bool = False
+) -> tuple[Union[cgm.Factor[cgm.CG_Node], SampleArray], np.random.Generator]:
     """Generate samples and compute their marginal distribution over specified nodes.
     
     Args:
@@ -234,18 +282,32 @@ def get_marginal_samples(
         nodes: Set of nodes to compute marginal for
         num_samples: Number of samples to generate
         state: Optional GraphState with conditions to respect
-        certificate: Optional certificate validating the state is suitable for
-            forward sampling. If state is provided but certificate is None,
-            validation will be performed.
+        certificate: Optional certificate validating the state
+        return_array: If True, return a SampleArray instead of Factor
         
     Returns:
         Tuple of:
-        - Factor containing marginal counts over specified nodes
+        - Either Factor containing marginal counts or SampleArray containing raw samples
         - New random key for subsequent operations
-        
-    Raises:
-        InvalidForwardSamplingError: If state is provided without a valid certificate
-            and validation fails
     """
-    samples, key = get_n_samples(cg, key, num_samples, state, certificate)
-    return samples.marginalize(list(set(cg.nodes) - nodes)), key
+    # Always get samples as array first
+    result, key = get_n_samples(cg, key, num_samples, state, certificate, return_array=True)
+    samples = typing.cast(SampleArray, result)  # We know this is true because return_array=True
+    
+    if return_array:
+        # For array return, we need to keep only the columns corresponding to the requested nodes
+        node_indices = [samples.schema.var_to_idx[node.name] for node in nodes]
+        marginal_values = samples.values[:, node_indices]
+        
+        # Create new schema with only the requested nodes
+        marginal_schema = cgm.GraphSchema(
+            var_to_idx={node.name: i for i, node in enumerate(nodes)},
+            var_to_states={node.name: node.num_states for node in nodes},
+            num_vars=len(nodes),
+            nodes=list(nodes)  # Convert set to list for schema
+        )
+        return SampleArray(marginal_values, marginal_schema), key
+    else:
+        # For factor return, use existing marginalization
+        factor = samples.to_factor()
+        return factor.marginalize(list(set(cg.nodes) - nodes)), key
