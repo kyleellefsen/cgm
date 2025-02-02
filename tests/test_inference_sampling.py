@@ -186,3 +186,50 @@ def test_cg_condition():
     # Test invalid value
     with pytest.raises(ValueError, match="Invalid value 5 for node 'season'"):
         cg.condition(season=5)  # season only has 4 states (0-3)
+
+
+def test_sample_counts():
+    """Test that get_n_samples returns exactly num_samples with correct shape"""
+    # Test with different sample sizes including edge cases
+    for num_samples in [0, 1, 5, 100]:
+        cg = cgm.example_graphs.get_chain_graph(3)  # Simple 3-node graph
+        key = np.random.default_rng(42)
+        
+        samples, _ = cgm.inference.get_n_samples(cg, key, num_samples=num_samples)
+        
+        # Check total number of samples
+        assert np.sum(samples.values) == num_samples, \
+            f"Expected {num_samples} samples, got {len(samples.values)}"
+            
+
+def test_conditioned_child_with_unconditioned_parent():
+    """Test that forward sampling fails when a node is conditioned but its ancestors aren't."""
+    cg = cgm.example_graphs.get_chain_graph(3)  # A->B->C
+    nodes = cg.nodes
+    A, B, C = nodes[0], nodes[1], nodes[2]
+    
+    # Set deterministic CPDs where child MUST match parent state
+    cg.P(B | A, values=np.array([[1,0],[0,1]]))  # B exactly copies A
+    cg.P(C | B, values=np.array([[1,0],[0,1]]))  # C exactly copies B
+    
+    # Condition middle node B=1 but don't condition parent A
+    conditioned_state = cg.condition(B=1)
+    
+    # Attempting to create a certificate should fail since B is conditioned but A isn't
+    key = np.random.default_rng(30)
+    with pytest.raises(cgm.inference.approximate.sampling.InvalidForwardSamplingError,
+                      match="Node B is conditioned but its ancestor A is not conditioned"):
+        cgm.inference.get_n_samples(cg, key, num_samples=100, state=conditioned_state)
+        
+    # Now condition both A and B - this should work
+    valid_state = cg.condition(A=1, B=1)
+    samples, _ = cgm.inference.get_n_samples(cg, key, num_samples=100, state=valid_state)
+    
+    # Verify both conditions are respected
+    for var_name, expected_value in [('A', 1), ('B', 1)]:
+        var_idx = valid_state.schema.var_to_idx[var_name]
+        marginal = samples.marginalize(list(set(cg.nodes) - {cg.nodes[var_idx]}))
+        dist = marginal.normalize().values
+        expected = np.zeros(2)  # Binary nodes
+        expected[expected_value] = 1.0
+        npt.assert_allclose(dist, expected)
