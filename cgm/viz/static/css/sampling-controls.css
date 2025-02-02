@@ -12,9 +12,34 @@
 .sampling-controls-header {
     font-size: 16px;
     font-weight: 600;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
+    padding: 8px;
     border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.sampling-controls-header:hover {
+    background-color: #f3f4f6;
+}
+
+.sampling-controls-header .toggle-icon {
+    font-size: 12px;
+    color: #6b7280;
+    transition: transform 0.2s;
+}
+
+.sampling-controls-content {
+    overflow: hidden;
+    max-height: 2000px; /* Adjust this value based on your content */
+}
+
+.sampling-controls-content.collapsed {
+    max-height: 0;
+    display: none;
 }
 
 .control-group {

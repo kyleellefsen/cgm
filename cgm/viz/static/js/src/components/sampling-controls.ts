@@ -21,104 +21,118 @@ export class SamplingControls {
         this.container.innerHTML = this.createTemplate();
         this.setupEventListeners();
         this.updateStatus('Idle');
+
+        // Add collapsible functionality
+        const toggleHeader = this.container.querySelector('#sampling-controls-toggle') as HTMLElement;
+        const content = this.container.querySelector('#sampling-controls-content') as HTMLElement;
+        const toggleIcon = toggleHeader.querySelector('.toggle-icon') as HTMLElement;
+
+        toggleHeader.addEventListener('click', () => {
+            content.classList.toggle('collapsed');
+            toggleIcon.textContent = content.classList.contains('collapsed') ? '▶' : '▼';
+        });
     }
 
     private createTemplate(): string {
         return `
             <div class="sampling-controls">
-                <div class="sampling-controls-header">Sampling Controls</div>
-                
-                <div class="control-group">
-                    <label class="control-label">Sampling Method</label>
-                    <select class="sampling-method-select" id="sampling-method">
-                        <option value="forward">Forward Sampling</option>
-                        <option value="rejection">Rejection Sampling</option>
-                        <option value="likelihood">Likelihood Sampling</option>
-                        <option value="gibbs">Gibbs Sampling</option>
-                    </select>
+                <div class="sampling-controls-header" id="sampling-controls-toggle">
+                    <span>Sampling Controls</span>
+                    <span class="toggle-icon">▼</span>
                 </div>
-
-                <div class="control-group">
-                    <label class="control-label">Sample Size</label>
-                    <input type="number" class="sample-size-input" id="sample-size" 
-                           value="1000" min="1" max="100000">
-                    <div class="preset-buttons">
-                        <button class="preset-button" data-size="100">100</button>
-                        <button class="preset-button" data-size="1000">1K</button>
-                        <button class="preset-button" data-size="10000">10K</button>
+                <div class="sampling-controls-content" id="sampling-controls-content">
+                    <div class="control-group">
+                        <label class="control-label">Sampling Method</label>
+                        <select class="sampling-method-select" id="sampling-method">
+                            <option value="forward">Forward Sampling</option>
+                            <option value="rejection">Rejection Sampling</option>
+                            <option value="likelihood">Likelihood Sampling</option>
+                            <option value="gibbs">Gibbs Sampling</option>
+                        </select>
                     </div>
-                </div>
 
-                <div class="control-group">
-                    <div class="toggle-container">
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="auto-update">
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <span class="control-label">Auto Update</span>
+                    <div class="control-group">
+                        <label class="control-label">Sample Size</label>
+                        <input type="number" class="sample-size-input" id="sample-size" 
+                               value="1000" min="1" max="100000">
+                        <div class="preset-buttons">
+                            <button class="preset-button" data-size="100">100</button>
+                            <button class="preset-button" data-size="1000">1K</button>
+                            <button class="preset-button" data-size="10000">10K</button>
+                        </div>
                     </div>
-                    <div class="helper-text">Auto-updates limited to 1000 samples</div>
-                </div>
 
-                <div class="advanced-options">
-                    <div class="advanced-header" id="advanced-toggle">
-                        <span>Advanced Options</span>
-                        <span class="toggle-icon">▼</span>
+                    <div class="control-group">
+                        <div class="toggle-container">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="auto-update">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="control-label">Auto Update</span>
+                        </div>
+                        <div class="helper-text">Auto-updates limited to 1000 samples</div>
                     </div>
-                    <div class="advanced-content" id="advanced-content">
-                        <div class="control-group gibbs-only" style="display: none;">
-                            <label class="control-label">Burn-in Period</label>
-                            <input type="number" class="sample-size-input" id="burn-in" 
-                                   value="100" min="0">
+
+                    <div class="advanced-options">
+                        <div class="advanced-header" id="advanced-toggle">
+                            <span>Advanced Options</span>
+                            <span class="toggle-icon">▼</span>
                         </div>
-                        <div class="control-group gibbs-only" style="display: none;">
-                            <label class="control-label">Thinning</label>
-                            <input type="number" class="sample-size-input" id="thinning" 
-                                   value="1" min="1">
-                        </div>
-                        <div class="control-group">
-                            <label class="control-label">Random Seed (optional)</label>
-                            <input type="number" class="sample-size-input" id="random-seed" 
-                                   placeholder="Leave blank for random">
-                        </div>
-                        <div class="control-group">
-                            <div class="toggle-container">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="cache-results" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                                <span class="control-label">Cache Results</span>
+                        <div class="advanced-content" id="advanced-content">
+                            <div class="control-group gibbs-only" style="display: none;">
+                                <label class="control-label">Burn-in Period</label>
+                                <input type="number" class="sample-size-input" id="burn-in" 
+                                       value="100" min="0">
+                            </div>
+                            <div class="control-group gibbs-only" style="display: none;">
+                                <label class="control-label">Thinning</label>
+                                <input type="number" class="sample-size-input" id="thinning" 
+                                       value="1" min="1">
+                            </div>
+                            <div class="control-group">
+                                <label class="control-label">Random Seed (optional)</label>
+                                <input type="number" class="sample-size-input" id="random-seed" 
+                                       placeholder="Leave blank for random">
+                            </div>
+                            <div class="control-group">
+                                <div class="toggle-container">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="cache-results" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="control-label">Cache Results</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <button class="generate-button" id="generate-button">
-                    Generate Samples
-                </button>
+                    <button class="generate-button" id="generate-button">
+                        Generate Samples
+                    </button>
 
-                <div class="status-area">
-                    <div class="status-text" id="status-text">Status: Idle</div>
-                    <div class="last-update" id="last-update"></div>
-                </div>
+                    <div class="status-area">
+                        <div class="status-text" id="status-text">Status: Idle</div>
+                        <div class="last-update" id="last-update"></div>
+                    </div>
 
-                <div class="stats-section">
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span>Total Samples:</span>
-                            <span id="stat-total">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span>Accepted:</span>
-                            <span id="stat-accepted">0 (0%)</span>
-                        </div>
-                        <div class="stat-item">
-                            <span>Rejected:</span>
-                            <span id="stat-rejected">0 (0%)</span>
-                        </div>
-                        <div class="stat-item">
-                            <span>Generation Time:</span>
-                            <span id="stat-time">0s</span>
+                    <div class="stats-section">
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span>Total Samples:</span>
+                                <span id="stat-total">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>Accepted:</span>
+                                <span id="stat-accepted">0 (0%)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>Rejected:</span>
+                                <span id="stat-rejected">0 (0%)</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>Generation Time:</span>
+                                <span id="stat-time">0s</span>
+                            </div>
                         </div>
                     </div>
                 </div>
