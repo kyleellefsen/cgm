@@ -11,7 +11,7 @@ import {
     SamplingResult,
     NodeSelection,
     LinkSelection
-} from '/types';
+} from '../types';
 import { PlotManager } from '/components/plot-manager';
 import { SamplingControls } from '/components/sampling-controls';
 
@@ -234,16 +234,15 @@ export class GraphVisualization {
         // Add arrow marker
         this.svg.append("defs").append("marker")
             .attr("id", "arrowhead")
-            .attr("viewBox", "-10 -5 20 10")  // Centered viewBox
-            .attr("refX", 15)  // Adjust to position arrow tip relative to node
+            .attr("viewBox", "-10 -5 20 10")
+            .attr("refX", 0)  // Reset to 0 since we'll handle positioning in the line
             .attr("refY", 0)
-            .attr("markerWidth", 12)  // Slightly larger
-            .attr("markerHeight", 12)  // Slightly larger
+            .attr("markerWidth", 20)
+            .attr("markerHeight", 20)
             .attr("orient", "auto")
-            .attr("markerUnits", "userSpaceOnUse")  // Use absolute units
             .append("path")
-            .attr("d", "M-10,-5L0,0L-10,5")  // Reversed path for better appearance
-            .attr("fill", "#64748b");  // Match link color
+            .attr("d", "M-10,-5L0,0L-10,5")
+            .attr("fill", "#64748b");
 
         // Initialize simulation with gentler forces
         this.simulation = d3.forceSimulation<SimulationNode>()
@@ -603,12 +602,82 @@ export class GraphVisualization {
     }
 
     async handleNodeClick(event: MouseEvent | null, d: SimulationNode) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        console.log('Node clicked:', d.id);
+        
+        // If clicking the same node, just update the table highlighting
+        if (this.selectedNode && this.selectedNode.id === d.id) {
+            this.updateTableHighlighting(d);
+            return;
+        }
+
+        const panel = d3.select<HTMLDivElement, unknown>(".upper-panel");
+        
+        if (!d.cpd) {
+            panel.html(`
+                <div class="panel-header">Node ${d.id}</div>
+                <div class="panel-placeholder">No CPD available</div>
+            `);
+            return;
+        }
+
+        // Store the selected node for later updates
+        this.selectedNode = d;
+
+        // Use the actual CPD HTML from the server
+        panel.html(`
+            <div class="panel-header">CPD for ${d.id}</div>
+            <div class="cpd-content">
+                ${d.cpd}
+            </div>
+        `);
+
+        // Determine if this node has parents by checking for multiple rows
+        const table = panel.select<HTMLTableElement>(".cpd-table");
+        const hasParents = table.selectAll("tbody tr").size() > 1;
+        table.classed("no-parents", !hasParents);
+
+        // Add click handlers for state cells
+        panel.selectAll<HTMLElement, unknown>("[data-variable][data-value]")
+            .on("click", (event) => {
+                const cell = event.target as HTMLElement;
+                const variable = cell.dataset.variable;
+                const value = parseInt(cell.dataset.value || "-1");
+                const currentState = parseInt(d.conditioned_state.toString());
+                
+                // Only allow conditioning on the clicked node
+                if (variable === d.id) {
+                    const newState = currentState === value ? -1 : value;
+                    
+                    fetch(`/condition/${d.id}/${newState}`, { method: 'POST' })
+                        .then(() => this.fetchAndUpdateState())
+                        .catch(error => console.error('Condition failed:', error));
+                }
+            });
+
+        // Apply initial highlighting if node is already conditioned
+        this.updateTableHighlighting(d);
+
+        // Update conditions in graph state
+        if (d.evidence !== undefined) {
+            this.currentGraphState.conditions[d.id] = d.evidence;
+        } else {
+            delete this.currentGraphState.conditions[d.id];
+        }
+
         // Try to get samples for this node
         try {
+            console.log('Fetching samples for node:', d.id);
             const response = await fetch(`/api/node_distribution/${d.id}`);
+            console.log('Response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('Received samples:', data);
                 
                 // Create or update the distribution plot
                 const plotData = {
@@ -616,29 +685,38 @@ export class GraphVisualization {
                     title: `Distribution for ${d.id}`,
                     samples: data.samples
                 };
+                console.log('Plot data:', plotData);
                 
                 // Set up the lower panel structure
                 const lowerPanel = d3.select<HTMLDivElement, unknown>(".lower-panel");
+                console.log('Lower panel found:', !lowerPanel.empty());
                 
                 // Ensure sampling controls don't take all space
                 const samplingControls = lowerPanel.select<HTMLDivElement>(".sampling-controls");
+                console.log('Sampling controls found:', !samplingControls.empty());
                 if (!samplingControls.empty()) {
                     samplingControls
                         .style("flex", "0 0 auto")
                         .style("margin-bottom", "20px");
                 }
                 
-                // Initialize PlotManager if needed
+                // Create plot manager if it doesn't exist
                 if (!this.plotManager) {
+                    console.log('Creating new PlotManager');
                     this.plotManager = new PlotManager();
                 }
                 
                 // Create or update the plot
                 if (!this.plotManager.hasPlot('selected-node')) {
+                    console.log('Creating new plot');
                     this.plotManager.createPlot('selected-node', 'distribution', plotData);
                 } else {
+                    console.log('Updating existing plot');
                     this.plotManager.updatePlot('selected-node', plotData);
                 }
+                
+                // Force layout recalculation
+                window.dispatchEvent(new Event('resize'));
             } else {
                 console.error('Failed to fetch samples:', await response.text());
             }
@@ -791,7 +869,7 @@ export class GraphVisualization {
             .join("line")
             .attr("class", "link")
             .attr("marker-end", "url(#arrowhead)")
-            .style("stroke", "#999")
+            .style("stroke", "#64748b")
             .style("stroke-width", "1.5px")
             .attr("x1", d => {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
@@ -809,13 +887,15 @@ export class GraphVisualization {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
                 const dy = (d.target.y || 0) - (d.source.y || 0);
                 const angle = Math.atan2(dy, dx);
-                return (d.target.x || 0) - Math.cos(angle) * ((d.target.width || 0) / 2);
+                const targetRadius = ((d.target.width || 0) / 2);
+                return (d.target.x || 0) - Math.cos(angle) * targetRadius;  // Remove the offset
             })
             .attr("y2", d => {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
                 const dy = (d.target.y || 0) - (d.source.y || 0);
                 const angle = Math.atan2(dy, dx);
-                return (d.target.y || 0) - Math.sin(angle) * ((d.target.height || 0) / 2);
+                const targetRadius = ((d.target.height || 0) / 2);
+                return (d.target.y || 0) - Math.sin(angle) * targetRadius;  // Remove the offset
             });
 
         // Update node groups
