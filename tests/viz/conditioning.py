@@ -1,9 +1,14 @@
 # This isn't a pytest, it has to be run manually
 # The command to run it is:
 # python -m tests.viz.conditioning
+import numpy as np
+
+
 import cgm
 import cgm.viz
-import numpy as np
+from fastapi.testclient import TestClient
+vizstate_instance = cgm.viz.vizstate_instance
+
 
 def test_conditioning_visualization():
     # Create a simple test graph
@@ -11,8 +16,10 @@ def test_conditioning_visualization():
     
     # Start visualization
     cgm.viz.show(g, open_new_browser_window=True)
-    print(cgm.viz.conditioned_nodes)
-    cgm.viz.condition('season', 0)
+    
+    print(vizstate_instance.conditioned_nodes)
+    vizstate_instance.condition('season', 0)
+    print(vizstate_instance.conditioned_nodes)
     
     print("\nVisual Inspection Test Steps:")
     print("1. Initial State")
@@ -47,10 +54,38 @@ def test_state_passing():
 
     g = cgm.example_graphs.get_cg2()  # Using rain/sprinkler/grass example
     cgm.viz.show(g, open_new_browser_window=True)
-    assert cgm.viz.conditioned_nodes() == {}
-    cgm.viz.condition('rain', 0)
-    assert cgm.viz.conditioned_nodes() == {'rain': 0}
+    assert vizstate_instance.conditioned_nodes == {}
+    vizstate_instance.condition('rain', 0)
+    assert vizstate_instance.conditioned_nodes == {'rain': 0}
 
+def test_sample_passing():
+    g = cgm.example_graphs.get_cg2()  # Using rain/sprinkler/grass example
+    cgm.viz.show(g, open_new_browser_window=True)
+    vizstate_instance.condition('season', 0)
+    client = TestClient(cgm.viz.app._app)
+    sampling_request = cgm.viz.models.SamplingRequest(
+        num_samples=100,
+        options=cgm.viz.models.SamplingOptions(random_seed=42)
+    )
+    print(sampling_request.model_dump())
+    response = client.post(
+        "/api/sample",
+        json=sampling_request.model_dump()  # Convert Pydantic model to dict
+    )
+    print(response.json())
+
+
+    # Then parse the response
+    result = cgm.viz.models.SamplingResponse(**response.json())
+    node_distribution_request = cgm.viz.models.NodeDistributionRequest(
+        node_name='season',
+        codomain='counts'
+    )
+    node_distribution_response = client.post(
+        "/api/node_distribution",
+        json=node_distribution_request.model_dump()
+    )
+    print(node_distribution_response.json())
 
 if __name__ == "__main__":
     test_conditioning_visualization()

@@ -904,3 +904,4 @@ export class GraphVisualization {
             .attr("x", d => d.x || 0)
             .attr("y", d => (d.y || 0) + this.nodeHeight);
     } 
+}

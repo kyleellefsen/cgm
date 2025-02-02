@@ -1,5 +1,5 @@
 """State management for the visualization module."""
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Literal
 from dataclasses import dataclass, field
 import time
 import numpy as np
@@ -8,7 +8,7 @@ import cgm
 from ..inference.approximate import sampling
 
 @dataclass
-class State:
+class VizState:
     """Global visualization state with convenient property accessors."""
     _current_graph: Optional[cgm.CG] = None
     _graph_state: Optional[cgm.GraphState] = None
@@ -41,6 +41,7 @@ class State:
             'conditions': {}
         }
     
+    
     def get_node_samples(self, node_name: str) -> Optional[List[int]]:
         """Get samples for a specific node from the cached samples.
         
@@ -58,12 +59,45 @@ class State:
             return self._current_samples.values[:, node_idx].tolist()
         except (KeyError, IndexError):
             return None
+
+    def get_node_distribution(self,
+                              node_name: str,
+                              codomain: str = "normalized_counts") -> Optional[tuple[list[int], list[float|int]]]:
+        """Get the distribution for a specific node from cached samples.
+        
+        The form of the result are two lists, one for the x values and one for
+        the y values.
+
+        The codomain can be one of "counts" or "normalized_counts".
+        """
+        if self._current_samples is None:
+            return None
+        schema = self._current_samples.schema
+        node_idx = schema.var_to_idx[node_name]
+        samples = self._current_samples.values[:, node_idx]
+        num_node_states = schema.var_to_states[node_name]
+        counts = np.bincount(samples, minlength=num_node_states)
+        if codomain == "counts":
+            y = counts.tolist()
+        elif codomain == "normalized_counts":
+            y = (counts / len(samples)).tolist()
+        else:
+            raise ValueError(f"Invalid codomain: {codomain}")
+        x = list(range(num_node_states))
+        return x, y
     
     def store_samples(self, samples: sampling.SampleArray, metadata: Dict[str, Any]):
         """Store new samples and their metadata."""
         self._current_samples = samples
         self._samples_metadata = metadata
     
+    @property
+    def n_samples(self) -> int:
+        """Get the number of samples in the current samples."""
+        if self._current_samples is None:
+            return 0
+        return self._current_samples.n
+
     @property
     def graph(self): return self._current_graph
     
@@ -113,15 +147,7 @@ class State:
         return True
 
 # Initialize global state
-_state = State()
-
-# Public interface
-def graph(): return _state.graph
-def state(): return _state.state
-def conditioned_nodes(): return _state.conditioned_nodes
-def condition(node: str, value: Optional[int] = None) -> bool:
-    """Set or clear node condition and update visualization."""
-    return _state.condition(node, value)
+_vizstate = VizState()
 
 # Expose internal state instance
-state_instance = _state 
+vizstate_instance = _vizstate 

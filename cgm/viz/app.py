@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 
 import cgm
-from .state import state_instance
+from .state import vizstate_instance
 from .routes import setup_routes
 
 def create_app() -> FastAPI:
@@ -54,8 +54,8 @@ def show(graph: cgm.CG, graph_state: Optional[cgm.GraphState] = None,
         start_server()
 
     # Update state using state instance
-    state_instance._current_graph = graph
-    state_instance._graph_state = graph_state
+    vizstate_instance._current_graph = graph
+    vizstate_instance._graph_state = graph_state
 
     if open_new_browser_window:
         webbrowser.open_new_tab(f'http://localhost:{_port}')

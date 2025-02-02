@@ -53,6 +53,12 @@ class SampleArray:
                 f"has {self.schema.num_vars}"
             )
 
+
+    @property
+    def n(self) -> int:
+        """Return the number of samples in the SampleArray."""
+        return self.values.shape[0]
+
     @property
     def shape(self) -> tuple[int, ...]:
         """Return the shape of the samples array."""
