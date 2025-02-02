@@ -8,19 +8,43 @@ Example usage:
     g1 = cgm.example_graphs.get_cg1()
     cgm.viz.show(g1, open_new_browser_window=True)  # Open browser for the first graph
 """
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 import pathlib
 import threading
 import webbrowser
 from dataclasses import dataclass
+import numpy as np
+import time
 
 from pydantic import BaseModel
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 import cgm
+from ..inference.approximate import sampling
+from ..inference.approximate.sampling import ForwardSamplingCertificate
+
+# Pydantic models for request/response validation
+class SamplingOptions(BaseModel):
+    burn_in: Optional[int] = 100
+    thinning: Optional[int] = 1
+    random_seed: Optional[int] = None
+    cache_results: Optional[bool] = True
+
+class SamplingRequest(BaseModel):
+    method: str = "forward"
+    num_samples: int = 1000
+    conditions: Dict[str, int] = {}
+    options: SamplingOptions = SamplingOptions()
+
+class SamplingResponse(BaseModel):
+    total_samples: int
+    accepted_samples: int
+    rejected_samples: int
+    samples: List[int]
+    seed_used: int  # Add field to return the seed that was used
 
 @dataclass
 class State:
@@ -30,12 +54,33 @@ class State:
     _graph_state: Optional[cgm.GraphState] = None
     _server_thread: Optional[threading.Thread] = None
     _port: int = 5050
+    _rng: np.random.Generator = np.random.default_rng()
+    _current_seed: Optional[int] = None  # Track current seed
+    
+    def set_seed(self, seed: Optional[int] = None) -> int:
+        """Set the random seed and return the seed used.
+        
+        If no seed is provided, generates one based on current time.
+        Returns the seed that was used for reproducibility.
+        """
+        if seed is None:
+            # Generate a seed from current time if none provided
+            seed = int(time.time() * 1000) & 0xFFFFFFFF
+        
+        self._current_seed = seed
+        self._rng = np.random.default_rng(seed)
+        return seed
     
     @property
     def graph(self): return self._current_graph
     
     @property
     def state(self): return self._graph_state
+    
+    @property
+    def current_seed(self) -> Optional[int]:
+        """Get the currently used random seed."""
+        return self._current_seed
     
     @property
     def conditioned_nodes(self) -> Dict[str, int]:
@@ -122,6 +167,53 @@ async def condition_node(node_id: str, state: int):
     if _state.condition(node_id, None if state == -1 else state):
         return {"status": "updated"}
     return {"status": "failed"}
+
+@_state._app.post("/api/sample", response_model=SamplingResponse)
+async def generate_samples(request: SamplingRequest) -> SamplingResponse:
+    """Generate samples from the current graph state."""
+    if not _state.graph:
+        raise HTTPException(status_code=400, detail="No graph loaded")
+        
+    try:
+        # Set random seed and get the seed used
+        seed_used = _state.set_seed(request.options.random_seed)
+        
+        # Create the conditioned state
+        state = _state.graph.condition(**request.conditions)
+        
+        # Create the sampling certificate
+        # Note: Currently only forward sampling is supported
+        # TODO: Add support for other sampling methods when implemented
+        cert = ForwardSamplingCertificate(state)
+            
+        # Generate samples
+        samples, _ = sampling.get_n_samples(
+            _state.graph,
+            _state._rng,
+            num_samples=request.num_samples,
+            state=state,
+            certificate=cert,
+            return_array=True
+        )
+        
+        # Process results
+        result = SamplingResponse(
+            total_samples=samples.shape[0],
+            accepted_samples=samples.shape[0],  # For methods that can reject samples
+            rejected_samples=0,  # For methods that can reject samples
+            samples=samples.values.tolist(),  # Convert numpy array to list
+            seed_used=seed_used  # Return the seed that was used
+        )
+        
+        # Cache results if requested
+        if request.options.cache_results:
+            # TODO: Implement caching mechanism
+            pass
+            
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def start_server() -> None:
     """Start the visualization server in a background thread."""

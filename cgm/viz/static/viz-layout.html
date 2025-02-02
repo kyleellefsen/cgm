@@ -3,7 +3,8 @@
 <head>
     <title>CGM Graph Visualization</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-    <link rel="stylesheet" href="/static/css/viz-styles.css"> 
+    <link rel="stylesheet" href="/static/css/viz-styles.css">
+    <link rel="stylesheet" href="/static/css/sampling-controls.css">
 </head>
 <body>
     <div class="container">
@@ -19,12 +20,11 @@
             </div>
             <div class="horizontal-resizer" id="horizontal-resizer"></div>
             <div class="lower-panel">
-                <div class="panel-placeholder">
-                    Plotting panel (coming soon)
-                </div>
+                <!-- Sampling controls will be injected here -->
             </div>
         </div>
     </div>
+    <script src="/static/js/sampling-controls.js"></script>
     <script src="/static/js/viz-graph.js"></script>
     <script>
         // Initialize visualization after both DOM and resources are loaded

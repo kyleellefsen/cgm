@@ -485,6 +485,18 @@ class GraphVisualization {
         this.startUpdateLoop();
         
         this.conditioned_vars = {};
+        
+        // Initialize sampling controls
+        this.samplingControls = new SamplingControls(
+            document.querySelector('.lower-panel'),
+            this.handleSamplingRequest.bind(this)
+        );
+        
+        // Track current graph state
+        this.currentGraphState = {
+            conditions: {},
+            lastSamplingResult: null
+        };
     }
 
     tick() {
@@ -862,16 +874,17 @@ class GraphVisualization {
         // Apply initial highlighting if node is already conditioned
         this.updateTableHighlighting(d);
 
-        // Create plot data
-        const plotData = {
-            variable: d.id,
-            title: `Distribution for ${d.id}`,
-            samples: this.generateDummySamples(d)
-        };
+        // Update conditions in graph state
+        if (d.evidence !== undefined) {
+            this.currentGraphState.conditions[d.id] = d.evidence;
+        } else {
+            delete this.currentGraphState.conditions[d.id];
+        }
 
-        // Only create a new plot if we don't have one for this node
-        if (!this.plotManager.plots.has('selected-node')) {
-            this.plotManager.createPlot('selected-node', 'distribution', plotData);
+        // If auto-update is enabled and we have a sampling control instance
+        if (this.samplingControls && 
+            this.samplingControls.getSettings().autoUpdate) {
+            this.samplingControls.generateSamples();
         }
     }
 
@@ -904,5 +917,61 @@ class GraphVisualization {
         }
         
         return samples;
+    }
+
+    async handleSamplingRequest(settings) {
+        const {
+            method,
+            sampleSize,
+            autoUpdate,
+            burnIn,
+            thinning,
+            randomSeed,
+            cacheResults
+        } = settings;
+
+        // Prepare request data
+        const requestData = {
+            method,
+            num_samples: sampleSize,
+            conditions: this.currentGraphState.conditions,
+            options: {
+                burn_in: burnIn,
+                thinning,
+                random_seed: randomSeed,
+                cache_results: cacheResults
+            }
+        };
+
+        try {
+            const response = await fetch('/api/sample', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Sampling failed: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            this.currentGraphState.lastSamplingResult = result;
+            
+            // Update distribution plot if it exists
+            if (this.distributionPlot) {
+                this.distributionPlot.update(result.samples);
+            }
+
+            return {
+                totalSamples: result.total_samples,
+                acceptedSamples: result.accepted_samples,
+                rejectedSamples: result.rejected_samples
+            };
+        } catch (error) {
+            console.error('Error during sampling:', error);
+            throw error;
+        }
     }
 } 
