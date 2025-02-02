@@ -1,0 +1,139 @@
+/* Panels Container */
+.panels-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 30%;
+    min-width: 200px;
+    height: 100vh;
+    overflow: hidden; /* Prevent container scrolling */
+}
+
+.upper-panel, .lower-panel {
+    background: #f9fafb;
+    padding: 1rem;
+    overflow-y: auto;
+    min-height: 100px;
+    box-sizing: border-box; /* Include padding in height calculation */
+}
+
+.upper-panel {
+    flex: 1 1 50%;
+    border-bottom: 1px solid var(--resizer-color);
+}
+
+.lower-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+
+.upper-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Prevent content from affecting size */
+}
+
+.panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.panel-header {
+    flex: 0 0 auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.panel-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6c757d;
+}
+
+/* Resizers */
+.vertical-resizer {
+    width: 8px;
+    background-color: var(--resizer-color);
+    cursor: col-resize;
+    transition: background-color 0.2s;
+    user-select: none;
+    flex: 0 0 auto;
+    height: 100vh;
+    position: relative;
+    z-index: 10;
+}
+
+.horizontal-resizer {
+    height: 8px;
+    background-color: var(--resizer-color);
+    cursor: row-resize;
+    transition: background-color 0.2s;
+    user-select: none;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 10;
+}
+
+.vertical-resizer:hover, 
+.vertical-resizer.resizing {
+    background-color: var(--resizer-hover-color);
+    width: 8px;
+}
+
+.horizontal-resizer:hover,
+.horizontal-resizer.resizing {
+    background-color: var(--resizer-hover-color);
+    height: 8px;
+}
+
+/* Add visual handles to resizers */
+.vertical-resizer::after {
+    content: "⋮";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 16px;
+}
+
+.horizontal-resizer::after {
+    content: "⋯";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 16px;
+}
+
+
+/* Panel styles */
+.panel-placeholder {
+    color: #6b7280;
+    text-align: center;
+    padding: 2rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+
+.panel-header {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+}

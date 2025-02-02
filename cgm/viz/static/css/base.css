@@ -1,0 +1,23 @@
+/* Base layout */
+:root {
+    --condition-fill-color: #dbeafe;    /* Light blue fill */
+    --condition-border-color: #2563eb;  /* Medium blue border */
+    --unconditioned-border-color: #E06666;  /* Red border for unconditioned nodes */
+    --cpd-hover-color: #e5e7eb;  /* Grey color for CPD cell hover */
+    --resizer-color: #e5e7eb;    /* Light grey for resizer */
+    --resizer-hover-color: #cbd5e1; /* Darker grey for resizer hover */
+}
+
+body { 
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; /* Prevent scrolling on body */
+}
+
+.container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden; /* Prevent container scrolling */
+}

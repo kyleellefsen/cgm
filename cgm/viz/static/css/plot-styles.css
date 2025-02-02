@@ -1,0 +1,113 @@
+
+.plots-container {
+    flex: 1 1 auto;
+    min-height: 300px;
+    overflow: auto;
+    position: relative;
+    background: #fff;
+}
+
+.plot-container {
+    width: 100%;
+    height: 300px;
+    margin-bottom: 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+
+.plot-container svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Axis styling */
+.plot-container .axis path,
+.plot-container .axis line {
+    stroke: #ccc;
+    stroke-width: 1px;
+}
+
+.plot-container .axis text {
+    font-size: 12px;
+    fill: #666;
+}
+
+.plot-container .axis-label {
+    font-size: 14px;
+    fill: #333;
+}
+
+/* Grid lines */
+.plot-container .grid line {
+    stroke: #eee;
+    stroke-width: 1px;
+}
+
+.plot-container .grid path {
+    stroke-width: 0;
+}
+
+/* Tooltip */
+.plot-tooltip {
+    position: absolute;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    pointer-events: none;
+    font-size: 12px;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.plot-container .bar {
+    fill: var(--condition-fill-color);
+    stroke: var(--condition-border-color);
+    stroke-width: 1px;
+    transition: fill 0.2s;
+}
+
+.plot-container .bar:hover {
+    fill: var(--condition-border-color);
+}
+
+.plot-container .plot-title {
+    font-size: 14px;
+    font-weight: 600;
+    fill: #333;
+}
+
+/* Plot styles */
+.axis path,
+.axis line {
+    stroke: #ccc;
+}
+
+.axis text {
+    font-size: 12px;
+    fill: #666;
+}
+
+.plot-title {
+    font-size: 14px;
+    font-weight: bold;
+    fill: #333;
+}
+
+.axis-label {
+    font-size: 12px;
+    fill: #666;
+}
+
+.bar {
+    fill: #4682b4;
+    transition: fill 0.2s;
+}
+
+.bar:hover {
+    fill: #5c9bd1;
+}

@@ -58,7 +58,7 @@ def show(graph: cgm.CG, graph_state: Optional[cgm.GraphState] = None,
     state_instance._graph_state = graph_state
 
     if open_new_browser_window:
-        webbrowser.open(f'http://localhost:{_port}')
+        webbrowser.open_new_tab(f'http://localhost:{_port}')
 
 def stop_server() -> None:
     """Stop the visualization server."""
