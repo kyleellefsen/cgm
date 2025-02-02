@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
-import { D3Selection, D3DivSelection, PlotData } from '../types.js';
-import { Plot, DistributionPlot } from './plot.js';
+import { D3Selection, D3DivSelection, PlotData } from '/types';
+import { Plot, DistributionPlot } from '/components/plot';
 
 export class PlotManager {
     private container: D3DivSelection;
@@ -16,18 +16,20 @@ export class PlotManager {
             samplingControls.style("flex", "0 0 auto");  // Don't grow, don't shrink, auto height
         }
         
-        // Check if plots container already exists
-        let plotsContainer = lowerPanel.select<HTMLDivElement>(".plots-container");
-        if (plotsContainer.empty()) {
-            // Create plots container after sampling controls
-            plotsContainer = lowerPanel.append<HTMLDivElement>("div")
-                .attr("class", "plots-container")
-                .style("flex", "1 1 auto")  // Grow and shrink as needed
-                .style("overflow", "auto")   // Add scrolling if needed
-                .style("margin-top", "20px")
-                .style("min-height", "300px"); // Ensure minimum height for visibility
-        }
+        // Force create plots container after sampling controls
+        // First remove any existing plots container to avoid duplicates
+        lowerPanel.selectAll(".plots-container").remove();
         
+        // Create new plots container
+        const plotsContainer = lowerPanel.append<HTMLDivElement>("div")
+            .attr("class", "plots-container")
+            .style("flex", "1 1 auto")  // Grow and shrink as needed
+            .style("overflow", "auto")   // Add scrolling if needed
+            .style("margin-top", "20px")
+            .style("min-height", "300px") // Ensure minimum height for visibility
+            .style("display", "block")    // Ensure it's visible
+            .style("visibility", "visible");
+            
         this.container = plotsContainer;
         this.plots = new Map();  // Store active plots
         
@@ -48,9 +50,6 @@ export class PlotManager {
     }
     
     public createPlot(id: string, type: string, data: PlotData): Plot | undefined {
-        console.log('Creating plot:', { id, type, data });
-        console.log('Container dimensions:', this.container.node()?.getBoundingClientRect());
-        
         // First remove any existing plot with this id
         this.removePlot(id);
         
@@ -73,13 +72,6 @@ export class PlotManager {
             .style("display", "block")
             .style("visibility", "visible") as D3DivSelection;
             
-        console.log('Plot container created:', {
-            width: plotContainer.style('width'),
-            height: plotContainer.style('height'),
-            display: plotContainer.style('display'),
-            visibility: plotContainer.style('visibility')
-        });
-        
         let plot: Plot | undefined;
         switch(type) {
             case 'distribution':
@@ -93,9 +85,6 @@ export class PlotManager {
         this.plots.set(id, plot);
         plot.render();  // Explicitly call render after creation
         
-        // Force a layout recalculation
-        window.dispatchEvent(new Event('resize'));
-        
         return plot;
     }
     
@@ -103,6 +92,8 @@ export class PlotManager {
         const plot = this.plots.get(id);
         if (plot) {
             plot.update(data);
+        } else {
+            console.warn(`Plot ${id} not found`);
         }
     }
     

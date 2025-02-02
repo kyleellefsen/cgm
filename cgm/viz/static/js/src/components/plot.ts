@@ -8,7 +8,7 @@ import {
     D3SVGGSelection,
     D3SVGTextSelection,
     D3SVGRectSelection
-} from '../types';
+} from '/types';
 
 export abstract class Plot {
     protected container: D3DivSelection;
@@ -16,22 +16,12 @@ export abstract class Plot {
     protected margin: { top: number; right: number; bottom: number; left: number };
     protected svg!: D3SVGSelection;
     protected plotGroup!: D3SVGGSelection;
+    protected tooltip!: D3DivSelection;
 
     constructor(container: D3DivSelection, data: PlotData) {
         this.container = container;
         this.data = data;
         this.margin = {top: 20, right: 20, bottom: 30, left: 40};
-    }
-
-    protected initialize(): void {
-        // Only setup container and basic SVG structure
-        this.container.html("");
-        this.svg = this.container.append<SVGElement>("svg")
-            .attr("width", this.width + this.margin.left + this.margin.right)
-            .attr("height", this.height + this.margin.top + this.margin.bottom)
-            .style("display", "block") as D3SVGSelection;
-        this.plotGroup = this.svg.append<SVGGElement>("g")
-            .attr("transform", `translate(${this.margin.left},${this.margin.top})`) as D3SVGGSelection;
     }
 
     protected get width(): number {
@@ -41,62 +31,9 @@ export abstract class Plot {
 
     protected get height(): number {
         const rect = this.container.node()?.getBoundingClientRect();
-        return rect ? rect.height - this.margin.top - this.margin.bottom : 100;
-    }
-
-    public update(data: PlotData): void {
-        const hasChanged = this.shouldUpdate(data);
-        if (hasChanged) {
-            this.data = data;
-            this.render();
-        }
-    }
-
-    protected shouldUpdate(newData: PlotData): boolean {
-        // Subclasses should implement their own update detection
-        return true;
-    }
-
-    public abstract render(): void;
-}
-
-interface ProbabilityData {
-    state: number;
-    probability: number;
-}
-
-export class DistributionPlot extends Plot {
-    private xScale: d3.ScaleBand<number>;
-    private yScale: d3.ScaleLinear<number, number>;
-    private tooltip!: D3DivSelection;
-    private previousData: PlotData | null;
-    private readonly minHeight: number;
-    private readonly transitionDuration: number;
-
-    constructor(container: D3DivSelection, data: PlotData) {
-        super(container, data);
-        this.margin = {top: 40, right: 20, bottom: 40, left: 50};
-        this.minHeight = 1;  // Minimum bar height
-        this.transitionDuration = 200;
-        this.previousData = null;
-        
-        // Initialize scales
-        this.xScale = d3.scaleBand<number>()
-            .padding(0.1)
-            .range([0, this.width]);
-            
-        this.yScale = d3.scaleLinear()
-            .range([this.height, 0]);
-            
-        // Process initial data
-        const probs = this.processData(data.samples || []);
-        
-        // Set initial domains
-        this.xScale.domain(probs.map(d => d.state));
-        this.yScale.domain([0, Math.max(1, d3.max(probs, d => d.probability) || 0)]).nice();
-        
-        // Now call initialize after scales are set up
-        this.initialize();
+        // Ensure we have a minimum height and account for margins
+        const containerHeight = rect?.height || 300;  // Default to 300px if no height
+        return Math.max(100, containerHeight - this.margin.top - this.margin.bottom);
     }
 
     protected initialize(): void {
@@ -166,8 +103,65 @@ export class DistributionPlot extends Plot {
         this.render();
     }
 
+    public update(data: PlotData): void {
+        const hasChanged = this.shouldUpdate(data);
+        if (hasChanged) {
+            this.data = data;
+            this.render();
+        }
+    }
+
+    protected shouldUpdate(newData: PlotData): boolean {
+        // Subclasses should implement their own update detection
+        return true;
+    }
+
+    public abstract render(): void;
+}
+
+interface ProbabilityData {
+    state: number;
+    probability: number;
+}
+
+export class DistributionPlot extends Plot {
+    private xScale: d3.ScaleBand<number>;
+    private yScale: d3.ScaleLinear<number, number>;
+    protected tooltip!: D3DivSelection;
+    private previousData: PlotData | null;
+    private readonly minHeight: number;
+    private readonly transitionDuration: number;
+
+    constructor(container: D3DivSelection, data: PlotData) {
+        super(container, data);
+        this.margin = {top: 40, right: 20, bottom: 40, left: 50};
+        this.minHeight = 1;  // Minimum bar height
+        this.transitionDuration = 200;
+        this.previousData = null;
+        
+        // Initialize scales
+        this.xScale = d3.scaleBand<number>()
+            .padding(0.1)
+            .range([0, this.width]);
+            
+        this.yScale = d3.scaleLinear()
+            .range([this.height, 0]);
+            
+        // Process initial data
+        const probs = this.processData(data.samples || []);
+        
+        // Set initial domains
+        this.xScale.domain(probs.map(d => d.state));
+        this.yScale.domain([0, Math.max(1, d3.max(probs, d => d.probability) || 0)]).nice();
+        
+        // Now call initialize after scales are set up
+        this.initialize();
+    }
+
     private processData(samples: number[]): ProbabilityData[] {
-        if (!samples || !samples.length) return [];
+        if (!samples || !samples.length) {
+            return [];
+        }
         
         // Count occurrences of each state
         const counts = new Map<number, number>();
@@ -200,19 +194,16 @@ export class DistributionPlot extends Plot {
     }
 
     public render(): void {
-        console.log('Rendering plot with data:', this.data);
-        console.log('Plot dimensions:', {
-            width: this.width,
-            height: this.height,
-            margin: this.margin
-        });
-        
         const {samples, title} = this.data;
-        if (!samples || !samples.length) return;
+        if (!samples || !samples.length) {
+            return;
+        }
         
         // Process the data
         const probs = this.processData(samples);
-        if (!probs.length) return;
+        if (!probs.length) {
+            return;
+        }
         
         // Update SVG dimensions
         const containerRect = this.container.node()?.getBoundingClientRect();

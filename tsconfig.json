@@ -18,8 +18,8 @@
     "types": ["d3"],
     "baseUrl": "cgm/viz/static/js/src",
     "paths": {
-      "/static/js/*": ["./*"],
-      "/components/*": ["./components/*"]
+      "/components/*": ["./components/*"],
+      "/types": ["./types"]
     },
     "allowImportingTsExtensions": false,
     "moduleDetection": "force"

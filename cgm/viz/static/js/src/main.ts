@@ -2,4 +2,4 @@
 export { GraphVisualization } from '/components/graph-visualization';
 export { PlotManager } from '/components/plot-manager';
 export { SamplingControls } from '/components/sampling-controls';
-export * from '/static/js/types'; 
+export * from '/types'; 
