@@ -441,20 +441,29 @@ export class GraphVisualization {
                 // Update plot data if it exists
                 if (this.plotManager && this.plotManager.hasPlot('selected-node')) {
                     // Fetch fresh distribution data for the node
-                    fetch(`/api/node_distribution/${updatedNode.id}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success && this.plotManager) {
-                                const plotData = {
-                                    variable: updatedNode.id,
-                                    title: `Distribution for ${updatedNode.id}`,
-                                    x_values: data.result.x_values,
-                                    y_values: data.result.y_values
-                                };
-                                this.plotManager.updatePlot('selected-node', plotData);
-                            }
+                    fetch('/api/node_distribution', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            node_name: updatedNode.id, 
+                            codomain: 'counts' 
                         })
-                        .catch(error => console.error('Error updating plot:', error));
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && this.plotManager) {
+                            const plotData = {
+                                variable: updatedNode.id,
+                                title: `Distribution for ${updatedNode.id}`,
+                                x_values: data.result.x_values,
+                                y_values: data.result.y_values
+                            };
+                            this.plotManager.updatePlot('selected-node', plotData);
+                        }
+                    })
+                    .catch(error => console.error('Error updating plot:', error));
                 }
             }
         }
@@ -673,7 +682,16 @@ export class GraphVisualization {
         // Try to get distribution for this node
         try {
             console.log('Fetching distribution for node:', d.id);
-            const response = await fetch(`/api/node_distribution/${d.id}`);
+            const response = await fetch('/api/node_distribution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    node_name: d.id, 
+                    codomain: 'counts' 
+                })
+            });
             console.log('Response status:', response.status);
             
             if (response.ok) {
@@ -781,7 +799,16 @@ export class GraphVisualization {
             // Update distribution plot if we have a selected node
             if (this.selectedNode && this.plotManager && this.plotManager.hasPlot('selected-node')) {
                 // Fetch fresh distribution for the selected node
-                const distResponse = await fetch(`/api/node_distribution/${this.selectedNode.id}`);
+                const distResponse = await fetch('/api/node_distribution', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        node_name: this.selectedNode.id, 
+                        codomain: 'counts' 
+                    })
+                });
                 if (distResponse.ok) {
                     const distData = await distResponse.json();
                     if (distData.success) {

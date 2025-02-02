@@ -97,7 +97,7 @@ export abstract class Plot {
             .attr("class", "axis-label y-label")
             .attr("text-anchor", "middle")
             .attr("transform", `translate(${-35},${this.height/2})rotate(-90)`)
-            .text("Probability");
+            .text("Count");
             
         // Initial render
         this.render();
@@ -223,7 +223,7 @@ export class DistributionPlot extends Plot {
             
         // Update axes
         const xAxis = d3.axisBottom(this.xScale).tickFormat(d => `State ${String(d)}`);
-        const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format(".1%"));
+        const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format("d"));
         
         this.plotGroup.select<SVGGElement>(".x-axis").call(xAxis);
         this.plotGroup.select<SVGGElement>(".y-axis").call(yAxis);
@@ -248,7 +248,7 @@ export class DistributionPlot extends Plot {
             .on("mouseover", (event: MouseEvent, d: ProbabilityData) => {
                 this.tooltip
                     .style("opacity", "1")
-                    .html(`State ${d.state}: ${(d.probability * 100).toFixed(0)}%`)
+                    .html(`State ${d.state}: ${Math.round(d.probability)}`)
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY - 10) + "px");
             })
