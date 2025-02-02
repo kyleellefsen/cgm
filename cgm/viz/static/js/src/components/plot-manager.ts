@@ -7,28 +7,15 @@ export class PlotManager {
     private plots: Map<string, Plot>;
 
     constructor() {
-        // Create a container for plots that coexists with sampling controls
-        const lowerPanel = d3.select<HTMLDivElement, unknown>(".lower-panel");
+        // Create a container for plots in the middle panel
+        const plotsContainer = d3.select<HTMLDivElement, unknown>(".distribution-plots-container");
         
-        // First ensure the sampling controls don't take up all the space
-        const samplingControls = lowerPanel.select<HTMLDivElement>(".sampling-controls");
-        if (!samplingControls.empty()) {
-            samplingControls.style("flex", "0 0 auto");  // Don't grow, don't shrink, auto height
+        if (plotsContainer.empty()) {
+            throw new Error("Distribution plots container not found");
         }
         
-        // Force create plots container after sampling controls
-        // First remove any existing plots container to avoid duplicates
-        lowerPanel.selectAll(".plots-container").remove();
-        
-        // Create new plots container
-        const plotsContainer = lowerPanel.append<HTMLDivElement>("div")
-            .attr("class", "plots-container")
-            .style("flex", "1 1 auto")  // Grow and shrink as needed
-            .style("overflow", "auto")   // Add scrolling if needed
-            .style("margin-top", "20px")
-            .style("min-height", "300px") // Ensure minimum height for visibility
-            .style("display", "block")    // Ensure it's visible
-            .style("visibility", "visible");
+        // Clear any existing content
+        plotsContainer.selectAll("*").remove();
             
         this.container = plotsContainer;
         this.plots = new Map();  // Store active plots
