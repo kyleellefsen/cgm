@@ -1,11 +1,11 @@
-import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+// import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+import * as d3 from 'd3';
 
 export class Plot {
     constructor(container, data) {
         this.container = container;
         this.data = data;
         this.margin = {top: 20, right: 20, bottom: 30, left: 40};
-        this.initialize();
     }
 
     initialize() {
@@ -26,7 +26,7 @@ export class Plot {
 
     get height() {
         const rect = this.container.node()?.getBoundingClientRect();
-        return rect ? Math.max(100, rect.height - this.margin.top - this.margin.bottom) : 100;
+        return rect ? rect.height - this.margin.top - this.margin.bottom : 100;
     }
 
     update(data) {
@@ -52,13 +52,27 @@ export class DistributionPlot extends Plot {
     constructor(container, data) {
         super(container, data);
         this.margin = {top: 40, right: 20, bottom: 40, left: 50};
+        this.minHeight = 1;  // Minimum bar height
+        this.transitionDuration = 200;
+        this.previousData = null;
+        
+        // Initialize scales
         this.xScale = d3.scaleBand()
-            .padding(0.1);
-        this.yScale = d3.scaleLinear();
-        this.previousData = null;  // Store previous data for comparison
-        this.minHeight = 1;  // Minimum height for visible bars
-        this.transitionDuration = 200; // Duration for transitions
-        this.initialize();  // Call initialize in constructor
+            .padding(0.1)
+            .range([0, this.width]);  // Set initial range
+            
+        this.yScale = d3.scaleLinear()
+            .range([this.height, 0]);  // Set initial range
+            
+        // Process initial data
+        const probs = this.processData(data.samples || []);
+        
+        // Set initial domains
+        this.xScale.domain(probs.map(d => d.state));
+        this.yScale.domain([0, Math.max(1, d3.max(probs, d => d.probability))]).nice();
+        
+        // Now call initialize after scales are set up
+        this.initialize();
     }
 
     initialize() {
@@ -80,17 +94,22 @@ export class DistributionPlot extends Plot {
         this.tooltip = tooltip;
         
         // Create SVG container with explicit dimensions
+        const containerRect = this.container.node().getBoundingClientRect();
+        const totalWidth = Math.max(100, containerRect.width);
+        const totalHeight = Math.max(100, containerRect.height);
+        
         this.svg = this.container.append("svg")
-            .attr("width", this.width + this.margin.left + this.margin.right)
-            .attr("height", this.height + this.margin.top + this.margin.bottom)
+            .attr("width", totalWidth)
+            .attr("height", totalHeight)
             .style("display", "block")
             .style("overflow", "visible");
             
         // Create plot group with margins
         this.plotGroup = this.svg.append("g")
+            .attr("class", "plot-group")
             .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
             
-        // Add axes groups but don't populate them yet
+        // Add axes groups
         this.xAxis = this.plotGroup.append("g")
             .attr("class", "axis x-axis")
             .attr("transform", `translate(0,${this.height})`);
@@ -98,26 +117,29 @@ export class DistributionPlot extends Plot {
         this.yAxis = this.plotGroup.append("g")
             .attr("class", "axis y-axis");
             
-        // Add static elements that don't need frequent updates
+        // Add static elements
         this.svg.append("text")
             .attr("class", "plot-title")
             .attr("text-anchor", "middle")
-            .attr("x", this.width/2 + this.margin.left)
+            .attr("x", totalWidth/2)
             .attr("y", 25)
             .text(this.data.title || "Distribution");
 
         this.plotGroup.append("text")
-            .attr("class", "axis-label")
+            .attr("class", "axis-label x-label")
             .attr("text-anchor", "middle")
             .attr("x", this.width/2)
             .attr("y", this.height + 30)
             .text("State");
 
         this.plotGroup.append("text")
-            .attr("class", "axis-label")
+            .attr("class", "axis-label y-label")
             .attr("text-anchor", "middle")
             .attr("transform", `translate(${-35},${this.height/2})rotate(-90)`)
             .text("Probability");
+            
+        // Initial render
+        this.render();
     }
 
     get width() {
@@ -127,7 +149,7 @@ export class DistributionPlot extends Plot {
 
     get height() {
         const rect = this.container.node()?.getBoundingClientRect();
-        return rect ? Math.max(100, rect.height - this.margin.top - this.margin.bottom) : 100;
+        return rect ? rect.height - this.margin.top - this.margin.bottom : 100;
     }
 
     // Helper method to process data
@@ -166,64 +188,66 @@ export class DistributionPlot extends Plot {
     }
 
     render() {
-        // Update SVG dimensions first
-        this.svg
-            .attr("width", this.width + this.margin.left + this.margin.right)
-            .attr("height", this.height + this.margin.top + this.margin.bottom);
-            
+        console.log('Rendering plot with data:', this.data);
+        console.log('Plot dimensions:', {
+            width: this.width,
+            height: this.height,
+            margin: this.margin
+        });
+        
         const {samples, title} = this.data;
-        
-        // Update title if changed
-        this.svg.select(".plot-title")
-            .text(title || "Initial Distribution")
-            .attr("x", this.width/2 + this.margin.left);
-        
-        // Check if data has actually changed
-        if (!this.hasDataChanged(this.data)) {
-            return;  // Skip update if data hasn't changed
-        }
+        if (!samples || !samples.length) return;
         
         // Process the data
         const probs = this.processData(samples);
         if (!probs.length) return;
-
-        // Store current data for future comparison
-        this.previousData = {...this.data};
-
-        // Ensure we have positive height to work with
-        const plotHeight = Math.max(100, this.height);  // Minimum plot height
-
+        
+        // Update SVG dimensions
+        const containerRect = this.container.node().getBoundingClientRect();
+        const totalHeight = Math.max(100, containerRect.height);
+        
+        this.svg
+            .attr("width", this.width + this.margin.left + this.margin.right)
+            .attr("height", totalHeight);
+            
+        // Update title
+        this.svg.select(".plot-title")
+            .text(title || "Distribution");
+        
         // Update scales
         this.xScale
-            .domain(probs.map(d => d.state))
-            .range([0, this.width]);
+            .range([0, this.width])
+            .domain(probs.map(d => d.state));
             
         this.yScale
-            .domain([0, Math.max(1, d3.max(probs, d => d.probability))])  // Ensure domain max is at least 1
-            .range([plotHeight, 0])
-            .nice();  // Nice round numbers for ticks
+            .range([this.height, 0])
+            .domain([0, Math.max(1, d3.max(probs, d => d.probability))])
+            .nice();
             
-        // Update axes only if domain changed
+        // Update axes
         const xAxis = d3.axisBottom(this.xScale).tickFormat(d => `State ${d}`);
         const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format(".1%"));
         
-        // Update axes immediately without transition
         this.xAxis.call(xAxis);
         this.yAxis.call(yAxis);
         
         // Update bars with object constancy
         const bars = this.plotGroup.selectAll(".bar")
-            .data(probs, d => d.state);  // Use state as key for object constancy
+            .data(probs, d => d.state);
             
         // ENTER new bars
         const barsEnter = bars.enter()
             .append("rect")
             .attr("class", "bar")
             .style("fill", "#4682b4")
+            .style("opacity", "1")  // Set initial opacity
             .attr("x", d => this.xScale(d.state))
             .attr("width", this.xScale.bandwidth())
-            .attr("y", plotHeight)
-            .attr("height", 0)
+            .attr("y", d => totalHeight * (1 - d.probability))  // Use total height
+            .attr("height", d => Math.max(this.minHeight, totalHeight * d.probability));  // Use total height
+            
+        // Add event listeners to new bars
+        barsEnter
             .on("mouseover", (event, d) => {
                 this.tooltip
                     .style("opacity", "1")
@@ -238,41 +262,27 @@ export class DistributionPlot extends Plot {
         // EXIT old bars
         bars.exit().remove();
             
-        // UPDATE + ENTER: merge and transition to new positions
-        const allBars = bars.merge(barsEnter)
-            .on("mouseover", (event, d) => {
-                this.tooltip
-                    .style("opacity", "1")
-                    .html(`State ${d.state}: ${(d.probability * 100).toFixed(0)}%`)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 10) + "px");
-            })
-            .on("mouseout", () => {
-                this.tooltip.style("opacity", "0");
-            });
-            
-        // First set the final values without transition
-        allBars
+        // UPDATE + ENTER: merge and transition
+        const allBars = bars.merge(barsEnter);
+        
+        // Update all bars with transition
+        allBars.transition()
+            .duration(this.transitionDuration)
             .attr("x", d => this.xScale(d.state))
             .attr("width", this.xScale.bandwidth())
-            .attr("y", d => this.yScale(d.probability))
-            .attr("height", d => {
-                const height = plotHeight - this.yScale(d.probability);
-                return Math.max(this.minHeight, height);
+            .attr("y", d => totalHeight * (1 - d.probability))  // Use total height
+            .attr("height", d => Math.max(this.minHeight, totalHeight * d.probability))  // Use total height
+            .style("opacity", "1");  // Ensure bars are visible
+        
+        // Log bar information
+        console.log('Created bars:', this.plotGroup.selectAll('.bar').size());
+        this.plotGroup.selectAll('.bar').each(function(d) {
+            console.log('Bar data:', {
+                state: d.state,
+                probability: d.probability,
+                height: d3.select(this).attr('height')
             });
-            
-        // Then optionally apply transition for smooth updates
-        if (this.previousData !== null) {
-            allBars.transition()
-                .duration(this.transitionDuration)
-                .attr("x", d => this.xScale(d.state))
-                .attr("width", this.xScale.bandwidth())
-                .attr("y", d => this.yScale(d.probability))
-                .attr("height", d => {
-                    const height = plotHeight - this.yScale(d.probability);
-                    return Math.max(this.minHeight, height);
-                });
-        }
+        });
     }
 
     update(data) {
@@ -321,25 +331,38 @@ export class PlotManager {
     }
     
     createPlot(id, type, data) {
+        console.log('Creating plot:', { id, type, data });
+        console.log('Container dimensions:', this.container.node().getBoundingClientRect());
+        
         // First remove any existing plot with this id
         this.removePlot(id);
         
         // Ensure the plots container is visible
         this.container
             .style("display", "block")
-            .style("visibility", "visible");
+            .style("visibility", "visible")
+            .style("overflow", "auto");
         
         const plotContainer = this.container
             .append("div")
             .attr("class", "plot-container")
-            .attr("id", id)  // Use the ID directly instead of prefixing with plot-
+            .attr("id", id)
             .style("width", "100%")
             .style("height", "300px")
             .style("position", "relative")
-            .style("margin-bottom", "10px")
-            .style("background", "#fff")  // Ensure plot is visible
-            .style("border", "1px solid #ddd");  // Add border for visibility
+            .style("margin-bottom", "20px")
+            .style("background", "#fff")
+            .style("border", "1px solid #ddd")
+            .style("display", "block")
+            .style("visibility", "visible");
             
+        console.log('Plot container created:', {
+            width: plotContainer.style('width'),
+            height: plotContainer.style('height'),
+            display: plotContainer.style('display'),
+            visibility: plotContainer.style('visibility')
+        });
+        
         let plot;
         switch(type) {
             case 'distribution':

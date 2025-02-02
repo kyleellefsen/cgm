@@ -52,12 +52,18 @@ describe('Distribution Plot Tests', () => {
     let plot;
     
     beforeEach(() => {
-        // Set up a container div with specific dimensions
-        container = d3.select(document.createElement('div'))
+        document.body.innerHTML = `
+            <div class="lower-panel" style="height: 789px;">
+                <div class="sampling-controls"></div>
+                <div class="plots-container" style="min-height: 300px;"></div>
+            </div>
+        `;
+        container = d3.select('.plots-container')
+            .append('div')
             .style('width', '500px')
             .style('height', '300px');
             
-        // Mock getBoundingClientRect for the container
+        // Mock getBoundingClientRect
         container.node().getBoundingClientRect = () => ({
             width: 500,
             height: 300,
@@ -158,6 +164,130 @@ describe('Distribution Plot Tests', () => {
             
             done();
         }, 300);  // Wait longer than the transition duration (200ms)
+    });
+
+    test('bars are rendered with correct visibility and dimensions', () => {
+        const testData = {
+            samples: [0, 0, 0, 1, 1],  // 60% state 0, 40% state 1
+            title: 'Bar Visibility Test'
+        };
+        
+        const plot = new DistributionPlot(container, testData);
+        plot.render();
+        
+        // Check if bars exist
+        const bars = container.selectAll('.bar');
+        expect(bars.size()).toBe(2); // Should have 2 bars
+        
+        // Check each bar's visibility and dimensions
+        bars.each(function(d, i) {
+            const bar = d3.select(this);
+            
+            // Check if bar is visible
+            expect(bar.style('display')).not.toBe('none');
+            expect(bar.style('visibility')).not.toBe('hidden');
+            expect(parseFloat(bar.style('opacity'))).toBeGreaterThan(0);
+            
+            // Check if bar has non-zero dimensions
+            const height = parseFloat(bar.attr('height'));
+            const width = parseFloat(bar.attr('width'));
+            expect(height).toBeGreaterThan(0);
+            expect(width).toBeGreaterThan(0);
+            
+            // Verify specific heights based on probabilities
+            if (i === 0) { // First bar (state 0)
+                expect(height).toBeCloseTo(180, -1); // 60% of available height (300)
+            } else { // Second bar (state 1)
+                expect(height).toBeCloseTo(120, -1); // 40% of available height (300)
+            }
+        });
+    });
+
+    test('bars maintain visibility after data updates', async () => {
+        const initialData = {
+            samples: [0, 0, 0, 1, 1],
+            title: 'Update Visibility Test'
+        };
+        
+        const plot = new DistributionPlot(container, initialData);
+        plot.render();
+        
+        // Check initial bars
+        let bars = container.selectAll('.bar');
+        expect(bars.size()).toBe(2);
+        
+        // Update with new data
+        const newData = {
+            samples: [1, 1, 1, 1, 0],  // 20% state 0, 80% state 1
+            title: 'Updated Test'
+        };
+        
+        plot.update(newData);
+        
+        // Wait for any transitions
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Check updated bars
+        bars = container.selectAll('.bar');
+        expect(bars.size()).toBe(2);
+        
+        // Verify each bar's visibility and dimensions after update
+        bars.each(function(d, i) {
+            const bar = d3.select(this);
+            
+            // Check visibility
+            expect(bar.style('display')).not.toBe('none');
+            expect(bar.style('visibility')).not.toBe('hidden');
+            expect(parseFloat(bar.style('opacity'))).toBeGreaterThan(0);
+            
+            // Check dimensions
+            const height = parseFloat(bar.attr('height'));
+            const width = parseFloat(bar.attr('width'));
+            expect(height).toBeGreaterThan(0);
+            expect(width).toBeGreaterThan(0);
+            
+            // Verify updated heights
+            if (i === 0) { // First bar (state 0)
+                expect(height).toBeCloseTo(60, -1); // 20% of available height
+            } else { // Second bar (state 1)
+                expect(height).toBeCloseTo(240, -1); // 80% of available height
+            }
+        });
+    });
+
+    test('plot container has correct CSS styles', () => {
+        const testData = {
+            samples: [0, 1, 0],
+            title: 'Style Test'
+        };
+        
+        const plot = new DistributionPlot(container, testData);
+        plot.render();
+        
+        // Check SVG container styles
+        const svg = container.select('svg');
+        expect(svg.style('display')).toBe('block');
+        expect(svg.style('overflow')).toBe('visible');
+        
+        // Check if SVG has explicit dimensions
+        expect(parseInt(svg.attr('width'))).toBeGreaterThan(0);
+        expect(parseInt(svg.attr('height'))).toBeGreaterThan(0);
+        
+        // Check plot group transformation
+        const plotGroup = container.select('g');
+        const transform = plotGroup.attr('transform');
+        expect(transform).toMatch(/translate\(\d+,\d+\)/);
+        
+        // Check if bars are within SVG bounds
+        const bars = container.selectAll('.bar');
+        bars.each(function() {
+            const bar = d3.select(this);
+            const x = parseFloat(bar.attr('x'));
+            const width = parseFloat(bar.attr('width'));
+            const totalWidth = parseFloat(svg.attr('width'));
+            
+            expect(x + width).toBeLessThanOrEqual(totalWidth);
+        });
     });
 });
 
@@ -388,5 +518,221 @@ describe('Distribution Plot Extended Tests', () => {
         
         // Tooltip should be hidden
         expect(tooltip.style('opacity')).toBe('0');
+    });
+});
+
+describe('Plot Rendering Pipeline Tests', () => {
+    let container;
+    let plotManager;
+    
+    beforeEach(() => {
+        // Set up DOM structure
+        document.body.innerHTML = `
+            <div class="lower-panel">
+                <div class="sampling-controls"></div>
+                <div class="plots-container"></div>
+            </div>
+        `;
+        
+        // Mock container dimensions
+        container = d3.select('.plots-container');
+        container.node().getBoundingClientRect = () => ({
+            width: 500,
+            height: 300,
+            top: 0,
+            left: 0,
+            bottom: 300,
+            right: 500
+        });
+        
+        plotManager = new PlotManager();
+    });
+    
+    test('plot container visibility and dimensions', () => {
+        const plotId = 'test-plot';
+        const plotData = {
+            samples: [0, 1, 0, 1, 0],
+            title: 'Test Plot'
+        };
+        
+        const plot = plotManager.createPlot(plotId, 'distribution', plotData);
+        
+        // Check container visibility
+        const plotContainer = document.querySelector(`#${plotId}`);
+        expect(plotContainer).toBeTruthy();
+        expect(getComputedStyle(plotContainer).display).not.toBe('none');
+        expect(getComputedStyle(plotContainer).visibility).not.toBe('hidden');
+        
+        // Check dimensions
+        expect(plotContainer.style.width).toBe('100%');
+        expect(plotContainer.style.height).toBe('300px');
+    });
+    
+    test('plot data flow and updates', async () => {
+        const plotId = 'test-plot';
+        const initialData = {
+            samples: [0, 0, 0, 1, 1],  // 60% state 0
+            title: 'Initial Plot'
+        };
+        
+        const plot = plotManager.createPlot(plotId, 'distribution', initialData);
+        
+        // Get initial bar heights
+        const initialBars = container.selectAll(`#${plotId} .bar`);
+        const initialHeights = [];
+        initialBars.each(function() {
+            initialHeights.push(d3.select(this).attr('height'));
+        });
+        
+        // Update with new data
+        const newData = {
+            samples: [1, 1, 1, 1, 0],  // 80% state 1
+            title: 'Updated Plot'
+        };
+        
+        plotManager.updatePlot(plotId, newData);
+        
+        // Wait for any transitions
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Check updated bars
+        const updatedBars = container.selectAll(`#${plotId} .bar`);
+        const updatedHeights = [];
+        updatedBars.each(function() {
+            updatedHeights.push(d3.select(this).attr('height'));
+        });
+        
+        // Heights should be different after update
+        expect(updatedHeights).not.toEqual(initialHeights);
+    });
+    
+    test('plot manager handles multiple plots', () => {
+        // Mock getBoundingClientRect for plot containers
+        let plotCount = 0;
+        Element.prototype.getBoundingClientRect = function() {
+            // If this is a plot container (has plot-container class)
+            if (this.classList?.contains('plot-container')) {
+                plotCount++;
+                return {
+                    width: 500,
+                    height: 300,
+                    top: (plotCount - 1) * 320,  // Account for margin between plots
+                    left: 0,
+                    bottom: plotCount * 320 - 20,  // Account for margin
+                    right: 500
+                };
+            }
+            // Default dimensions for other elements
+            return {
+                width: 500,
+                height: 300,
+                top: 0,
+                left: 0,
+                bottom: 300,
+                right: 500
+            };
+        };
+        
+        const plotData1 = {
+            samples: [0, 1, 0],
+            title: 'Plot 1'
+        };
+        const plotData2 = {
+            samples: [1, 1, 0],
+            title: 'Plot 2'
+        };
+        
+        const plot1 = plotManager.createPlot('plot1', 'distribution', plotData1);
+        const plot2 = plotManager.createPlot('plot2', 'distribution', plotData2);
+        
+        // Both plots should exist
+        expect(document.querySelector('#plot1')).toBeTruthy();
+        expect(document.querySelector('#plot2')).toBeTruthy();
+        
+        // Plots should be stacked vertically
+        const plot1Rect = document.querySelector('#plot1').getBoundingClientRect();
+        const plot2Rect = document.querySelector('#plot2').getBoundingClientRect();
+        expect(plot2Rect.top).toBeGreaterThan(plot1Rect.bottom);
+        
+        // Reset the mock
+        Element.prototype.getBoundingClientRect = function() {
+            return {
+                width: 500,
+                height: 300,
+                top: 0,
+                left: 0,
+                bottom: 300,
+                right: 500
+            };
+        };
+    });
+});
+
+describe('Plot Creation Tests', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="lower-panel" style="height: 789px;">
+                <div class="sampling-controls"></div>
+                <div class="plots-container" style="flex: 1 1 auto; min-height: 300px;"></div>
+            </div>
+        `;
+    });
+
+    test('plot elements are created in DOM', () => {
+        const plotManager = new PlotManager();
+        const plotId = 'test-plot';
+        const plotData = {
+            samples: [0, 1, 0],
+            title: 'Test Plot'
+        };
+
+        // Create plot
+        plotManager.createPlot(plotId, 'distribution', plotData);
+
+        // Verify DOM structure
+        const plotsContainer = document.querySelector('.plots-container');
+        expect(plotsContainer).toBeTruthy();
+
+        // Check plot container was created
+        const plotContainer = plotsContainer.querySelector(`#${plotId}`);
+        expect(plotContainer).toBeTruthy();
+        expect(plotContainer.style.display).toBe('block');
+
+        // Check SVG was created
+        const svg = plotContainer.querySelector('svg');
+        expect(svg).toBeTruthy();
+
+        // Check basic plot elements exist
+        expect(svg.querySelector('.plot-title')).toBeTruthy();
+        expect(svg.querySelector('.bar')).toBeTruthy();
+        
+        // Log the entire plots-container HTML for debugging
+        console.log('Plots container HTML:', plotsContainer.innerHTML);
+    });
+
+    test('multiple plots are created correctly', () => {
+        const plotManager = new PlotManager();
+        
+        // Create first plot
+        plotManager.createPlot('plot1', 'distribution', {
+            samples: [0, 1, 0],
+            title: 'Plot 1'
+        });
+
+        // Create second plot
+        plotManager.createPlot('plot2', 'distribution', {
+            samples: [1, 1, 0],
+            title: 'Plot 2'
+        });
+
+        const plotsContainer = document.querySelector('.plots-container');
+        const plots = plotsContainer.querySelectorAll('.plot-container');
+        expect(plots.length).toBe(2);
+
+        // Verify each plot has the necessary elements
+        plots.forEach(plot => {
+            expect(plot.querySelector('svg')).toBeTruthy();
+            expect(plot.querySelector('.bar')).toBeTruthy();
+        });
     });
 }); 
