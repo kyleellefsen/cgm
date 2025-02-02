@@ -527,6 +527,8 @@ class CPD(Factor[CG_Node]):
     ```
 
     """
+    _child: CG_Node
+    _parents: frozenset[CG_Node]
 
     def __init__(self,
                  scope: Sequence[CG_Node],
@@ -560,7 +562,7 @@ class CPD(Factor[CG_Node]):
         if not virtual:
             # Add node to DAG *before* checking cycles
             dag: DAG[CG_Node] = child.dag_node.dag
-            dag.add_node(child.dag_node, parents=self._parents, replace=True)            
+            dag.add_node(child.dag_node, parents=parents, replace=True)            
             # Register the CPD with the CG
             child.cg.set_cpd(child, self)
             # Only check cycles for non-virtual CPDs
@@ -678,8 +680,6 @@ class CPD(Factor[CG_Node]):
     @property
     def table(self) -> _format.FactorTableView:
         """Access the CPD's table representation."""
-
-
         return _format.CPDTableView(self)
 
 @_utils.set_module('cgm')
@@ -828,6 +828,47 @@ class CG:
     def set_cpd(self, node: CG_Node, cpd: CPD) -> None:
         """Associate a CPD with a node."""
         self._cpd_dict[node] = cpd
+
+    def condition(self, **conditions: int) -> 'GraphState':
+        """Create a conditioned graph state from node name to value mappings.
+
+        Args:
+            **conditions: Keyword arguments mapping node names to their conditioned values.
+                For example: condition(season=0, rain=1)
+                
+        Returns:
+            A GraphState object with the specified conditions applied.
+            
+        Raises:
+            ValueError: If a node name doesn't exist in the graph or if a value is invalid.
+
+        Example:
+            cg = cgm.CG()
+            A = cg.node('A', 2)
+            B = cg.node('B', 2)
+            cg.P(A | B)
+            state = cg.condition(A=0)
+        """
+        state = GraphState.create(self)
+        sample = np.full(state.schema.num_vars, -1)
+        
+        # Apply each condition
+        for node_name, value in conditions.items():
+            try:
+                idx = state.schema.var_to_idx[node_name]
+            except KeyError:
+                raise ValueError(f"Node '{node_name}' not found in graph")
+                
+            node = self.nodes[idx]
+            if not 0 <= value < node.num_states:
+                raise ValueError(
+                    f"Invalid value {value} for node '{node_name}'. "
+                    f"Must be between 0 and {node.num_states-1}"
+                )
+            
+            sample[idx] = value
+            
+        return state.condition_on_sample(sample)
 
     def node(self, name: str, num_states: int) -> CG_Node:
         """Create a new node and return it.

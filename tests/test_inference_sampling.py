@@ -8,7 +8,6 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 import cgm
-from scipy import stats
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('asyncio').setLevel(logging.WARNING)
@@ -99,11 +98,7 @@ def test_multiple_conditions():
     state = cgm.GraphState.create(cg)
     schema = state.schema
     
-    # Condition on both season and rain
-    sample = np.full(schema.num_vars, -1)
-    sample[schema.var_to_idx['season']] = 0
-    sample[schema.var_to_idx['rain']] = 1
-    conditioned_state = state.condition_on_sample(sample)
+    conditioned_state = cg.condition(season=0, rain=1)
     
     # Generate samples
     key = np.random.default_rng(30)
@@ -153,3 +148,41 @@ def test_statistical_properties():
         dist_a1 = get_conditional_dist(1, b)
         if np.all(dist_a0 > 0) and np.all(dist_a1 > 0):  # Only test if we have enough samples
             npt.assert_allclose(dist_a0, dist_a1, rtol=0.1)
+
+
+def test_cg_condition():
+    """Test the CG.condition() convenience method for conditioning"""
+    cg = cgm.example_graphs.get_cg2()
+    
+    # Test single condition
+    state1 = cg.condition(season=0)
+    assert bool(state1.mask[state1.schema.var_to_idx['season']])  # Convert numpy bool to Python bool
+    assert state1.values[state1.schema.var_to_idx['season']] == 0
+    
+    # Test multiple conditions
+    state2 = cg.condition(season=1, rain=0)
+    assert bool(state2.mask[state2.schema.var_to_idx['season']])
+    assert bool(state2.mask[state2.schema.var_to_idx['rain']])
+    assert state2.values[state2.schema.var_to_idx['season']] == 1
+    assert state2.values[state2.schema.var_to_idx['rain']] == 0
+    
+    # Test that sampling respects the conditions
+    key = np.random.default_rng(30)
+    samples, _ = cgm.inference.get_n_samples(cg, key, num_samples=1000, state=state2)
+    
+    # Verify both conditions are respected in samples
+    for var_name, expected_value in [('season', 1), ('rain', 0)]:
+        var_idx = state2.schema.var_to_idx[var_name]
+        marginal = samples.marginalize(list(set(cg.nodes) - {cg.nodes[var_idx]}))
+        dist = marginal.normalize().values
+        expected = np.zeros(cg.nodes[var_idx].num_states)
+        expected[expected_value] = 1.0
+        npt.assert_allclose(dist, expected)
+    
+    # Test invalid node name
+    with pytest.raises(ValueError, match="Node 'invalid_node' not found in graph"):
+        cg.condition(invalid_node=0)
+    
+    # Test invalid value
+    with pytest.raises(ValueError, match="Invalid value 5 for node 'season'"):
+        cg.condition(season=5)  # season only has 4 states (0-3)
