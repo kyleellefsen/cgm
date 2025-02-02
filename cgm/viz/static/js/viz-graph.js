@@ -1,4 +1,6 @@
-class Plot {
+import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+
+export class Plot {
     constructor(container, data) {
         this.container = container;
         this.data = data;
@@ -44,7 +46,7 @@ class Plot {
     }
 }
 
-class DistributionPlot extends Plot {
+export class DistributionPlot extends Plot {
     constructor(container, data) {
         super(container, data);
         this.margin = {top: 40, right: 20, bottom: 40, left: 50};
@@ -52,41 +54,8 @@ class DistributionPlot extends Plot {
             .padding(0.1);
         this.yScale = d3.scaleLinear();
         this.previousData = null;  // Store previous data for comparison
-    }
-
-    // Helper method to process data
-    processData(samples) {
-        if (!samples || !samples.length) return [];
-        
-        // Count occurrences of each state
-        const counts = new Map();
-        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
-        
-        // Convert to probability
-        const probs = Array.from(counts.entries()).map(([state, count]) => ({
-            state,
-            probability: count / samples.length
-        }));
-        
-        // Sort by state
-        return probs.sort((a, b) => a.state - b.state);
-    }
-
-    // Helper method to check if data has changed
-    hasDataChanged(newData) {
-        if (!this.previousData) return true;
-        if (!newData || !newData.samples) return true;
-        
-        const oldProbs = this.processData(this.previousData.samples);
-        const newProbs = this.processData(newData.samples);
-        
-        if (oldProbs.length !== newProbs.length) return true;
-        
-        return newProbs.some((newProb, i) => {
-            const oldProb = oldProbs[i];
-            return newProb.state !== oldProb.state || 
-                   Math.abs(newProb.probability - oldProb.probability) > 0.001;
-        });
+        this.minHeight = 1;  // Minimum height for visible bars
+        this.initialize();  // Call initialize in constructor
     }
 
     initialize() {
@@ -95,8 +64,8 @@ class DistributionPlot extends Plot {
         
         // Create SVG container with explicit dimensions
         this.svg = this.container.append("svg")
-            .attr("width", this.width + this.margin.left + this.margin.right)
-            .attr("height", this.height + this.margin.top + this.margin.bottom)
+            .attr("width", "100%")
+            .attr("height", "100%")
             .style("display", "block")
             .style("overflow", "visible");
             
@@ -134,6 +103,51 @@ class DistributionPlot extends Plot {
             .text("Probability");
     }
 
+    get width() {
+        const rect = this.container.node().getBoundingClientRect();
+        return Math.max(100, rect.width - this.margin.left - this.margin.right);
+    }
+
+    get height() {
+        const rect = this.container.node().getBoundingClientRect();
+        return Math.max(100, rect.height - this.margin.top - this.margin.bottom);
+    }
+
+    // Helper method to process data
+    processData(samples) {
+        if (!samples || !samples.length) return [];
+        
+        // Count occurrences of each state
+        const counts = new Map();
+        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+        
+        // Convert to probability
+        const probs = Array.from(counts.entries()).map(([state, count]) => ({
+            state,
+            probability: count / samples.length
+        }));
+        
+        // Sort by state
+        return probs.sort((a, b) => a.state - b.state);
+    }
+
+    // Helper method to check if data has changed
+    hasDataChanged(newData) {
+        if (!this.previousData) return true;
+        if (!newData || !newData.samples) return true;
+        
+        const oldProbs = this.processData(this.previousData.samples);
+        const newProbs = this.processData(newData.samples);
+        
+        if (oldProbs.length !== newProbs.length) return true;
+        
+        return newProbs.some((newProb, i) => {
+            const oldProb = oldProbs[i];
+            return newProb.state !== oldProb.state || 
+                   Math.abs(newProb.probability - oldProb.probability) > 0.001;
+        });
+    }
+
     render() {
         const {samples} = this.data;
         
@@ -149,27 +163,26 @@ class DistributionPlot extends Plot {
         // Store current data for future comparison
         this.previousData = {...this.data};
 
+        // Ensure we have positive height to work with
+        const plotHeight = Math.max(100, this.height);  // Minimum plot height
+
         // Update scales
         this.xScale
             .domain(probs.map(d => d.state))
             .range([0, this.width]);
             
         this.yScale
-            .domain([0, 1])
-            .range([this.height, 0]);
+            .domain([0, Math.max(1, d3.max(probs, d => d.probability))])  // Ensure domain max is at least 1
+            .range([plotHeight, 0])
+            .nice();  // Nice round numbers for ticks
             
         // Update axes only if domain changed
         const xAxis = d3.axisBottom(this.xScale).tickFormat(d => `State ${d}`);
-        const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format(".0%"));
+        const yAxis = d3.axisLeft(this.yScale).ticks(5).tickFormat(d3.format(".1%"));
         
-        // Use transition for axes only if they need updating
-        this.xAxis.transition()
-            .duration(200)
-            .call(xAxis);
-            
-        this.yAxis.transition()
-            .duration(200)
-            .call(yAxis);
+        // Update axes immediately without transition
+        this.xAxis.call(xAxis);
+        this.yAxis.call(yAxis);
         
         // Update bars with object constancy
         const bars = this.plotGroup.selectAll(".bar")
@@ -180,35 +193,57 @@ class DistributionPlot extends Plot {
             .append("rect")
             .attr("class", "bar")
             .style("fill", "#4682b4")
-            // Start new bars at their final x position but at height 0
             .attr("x", d => this.xScale(d.state))
             .attr("width", this.xScale.bandwidth())
-            .attr("y", this.height)
+            .attr("y", plotHeight)
             .attr("height", 0);
             
         // EXIT old bars
-        bars.exit()
-            .transition()
-            .duration(200)
-            .attr("y", this.height)
-            .attr("height", 0)
-            .remove();
+        bars.exit().remove();
             
         // UPDATE + ENTER: merge and transition to new positions
-        bars.merge(barsEnter)
-            .transition()
-            .duration(200)
+        const allBars = bars.merge(barsEnter);
+        
+        // First set the final values without transition
+        allBars
             .attr("x", d => this.xScale(d.state))
             .attr("width", this.xScale.bandwidth())
             .attr("y", d => this.yScale(d.probability))
-            .attr("height", d => this.height - this.yScale(d.probability));
+            .attr("height", d => {
+                const height = plotHeight - this.yScale(d.probability);
+                return Math.max(this.minHeight, height);
+            });
+            
+        // Then optionally apply transition for smooth updates
+        if (this.previousData !== null) {
+            allBars.transition()
+                .duration(200)
+                .attr("x", d => this.xScale(d.state))
+                .attr("width", this.xScale.bandwidth())
+                .attr("y", d => this.yScale(d.probability))
+                .attr("height", d => {
+                    const height = plotHeight - this.yScale(d.probability);
+                    return Math.max(this.minHeight, height);
+                });
+        }
+    }
+
+    update(data) {
+        this.data = data;
+        this.render();
     }
 }
 
-class PlotManager {
+export class PlotManager {
     constructor() {
         // Create a container for plots that coexists with sampling controls
         const lowerPanel = d3.select(".lower-panel");
+        
+        // First ensure the sampling controls don't take up all the space
+        const samplingControls = lowerPanel.select(".sampling-controls");
+        if (!samplingControls.empty()) {
+            samplingControls.style("flex", "0 0 auto");  // Don't grow, don't shrink, auto height
+        }
         
         // Check if plots container already exists
         let plotsContainer = lowerPanel.select(".plots-container");
@@ -216,7 +251,10 @@ class PlotManager {
             // Create plots container after sampling controls
             plotsContainer = lowerPanel.append("div")
                 .attr("class", "plots-container")
-                .style("margin-top", "20px");
+                .style("flex", "1 1 auto")  // Grow and shrink as needed
+                .style("overflow", "auto")   // Add scrolling if needed
+                .style("margin-top", "20px")
+                .style("min-height", "300px"); // Ensure minimum height for visibility
         }
         
         this.container = plotsContainer;
@@ -239,14 +277,21 @@ class PlotManager {
         // First remove any existing plot with this id
         this.removePlot(id);
         
+        // Ensure the plots container is visible
+        this.container
+            .style("display", "block")
+            .style("visibility", "visible");
+        
         const plotContainer = this.container
             .append("div")
             .attr("class", "plot-container")
             .attr("id", `plot-${id}`)
             .style("width", "100%")
-            .style("height", "300px")  // Fixed height for plots
+            .style("height", "300px")
             .style("position", "relative")
-            .style("margin-bottom", "10px");
+            .style("margin-bottom", "10px")
+            .style("background", "#fff")  // Ensure plot is visible
+            .style("border", "1px solid #ddd");  // Add border for visibility
             
         let plot;
         switch(type) {
@@ -260,6 +305,10 @@ class PlotManager {
         
         this.plots.set(id, plot);
         plot.render();  // Explicitly call render after creation
+        
+        // Force a layout recalculation
+        window.dispatchEvent(new Event('resize'));
+        
         return plot;
     }
     
@@ -279,7 +328,7 @@ class PlotManager {
     }
 }
 
-class GraphVisualization {
+export class GraphVisualization {
     setupResizers() {
         this.setupVerticalResizer();
         this.setupHorizontalResizer();
@@ -493,16 +542,25 @@ class GraphVisualization {
         this.conditioned_vars = {};
         
         // Initialize sampling controls
-        this.samplingControls = new SamplingControls(
-            document.querySelector('.lower-panel'),
-            this.handleSamplingRequest.bind(this)
-        );
+        this.initializeSamplingControls();
         
         // Track current graph state
         this.currentGraphState = {
             conditions: {},
             lastSamplingResult: null
         };
+    }
+
+    async initializeSamplingControls() {
+        try {
+            const { SamplingControls } = await import('/static/js/sampling-controls.js');
+            this.samplingControls = new SamplingControls(
+                document.querySelector('.lower-panel'),
+                this.handleSamplingRequest.bind(this)
+            );
+        } catch (error) {
+            console.error('Failed to initialize sampling controls:', error);
+        }
     }
 
     tick() {
@@ -907,13 +965,40 @@ class GraphVisualization {
                 };
                 console.log('Plot data:', plotData);
                 
-                // Clear the lower panel first
+                // Set up the lower panel structure
                 const lowerPanel = d3.select(".lower-panel");
+                console.log('Lower panel found:', !lowerPanel.empty());
+                
+                // Ensure sampling controls don't take all space
+                const samplingControls = lowerPanel.select(".sampling-controls");
+                console.log('Sampling controls found:', !samplingControls.empty());
+                if (!samplingControls.empty()) {
+                    samplingControls
+                        .style("flex", "0 0 auto")
+                        .style("margin-bottom", "20px");
+                }
+                
+                // Create plot manager if it doesn't exist
                 if (!this.plotManager) {
                     console.log('Creating new PlotManager');
                     this.plotManager = new PlotManager();
                 }
                 
+                // Ensure the plots container exists and is properly styled
+                let plotsContainer = lowerPanel.select(".plots-container");
+                console.log('Plots container exists:', !plotsContainer.empty());
+                if (plotsContainer.empty()) {
+                    console.log('Creating plots container');
+                    plotsContainer = lowerPanel.append("div")
+                        .attr("class", "plots-container")
+                        .style("flex", "1 1 auto")
+                        .style("min-height", "300px")
+                        .style("margin-top", "20px")
+                        .style("position", "relative")
+                        .style("overflow", "auto");
+                }
+                
+                // Create or update the plot
                 if (!this.plotManager.plots.has('selected-node')) {
                     console.log('Creating new plot');
                     this.plotManager.createPlot('selected-node', 'distribution', plotData);
@@ -921,6 +1006,9 @@ class GraphVisualization {
                     console.log('Updating existing plot');
                     this.plotManager.updatePlot('selected-node', plotData);
                 }
+                
+                // Force layout recalculation
+                window.dispatchEvent(new Event('resize'));
             } else {
                 console.error('Failed to fetch samples:', await response.text());
             }

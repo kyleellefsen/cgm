@@ -1,4 +1,4 @@
-class SamplingControls {
+export class SamplingControls {
     constructor(container, onSamplingRequest) {
         this.container = container;
         this.onSamplingRequest = onSamplingRequest;

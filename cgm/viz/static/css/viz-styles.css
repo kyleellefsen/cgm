@@ -61,27 +61,33 @@ body {
 .lower-panel {
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .sampling-controls {
     flex: 0 0 auto;
-    padding: 12px;
-    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 20px;
 }
 
 .plots-container {
     flex: 1 1 auto;
-    padding: 12px;
-    overflow-y: auto;
+    min-height: 300px;
+    overflow: auto;
+    position: relative;
+    background: #fff;
 }
 
 .plot-container {
-    background: white;
-    border: 1px solid #e5e7eb;
+    width: 100%;
+    height: 300px;
+    margin-bottom: 10px;
+    background: #fff;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    padding: 12px;
+    overflow: hidden;
 }
 
 /* Resizers */
@@ -362,4 +368,35 @@ body {
     font-size: 14px;
     font-weight: 600;
     fill: #333;
+}
+
+/* Plot styles */
+.axis path,
+.axis line {
+    stroke: #ccc;
+}
+
+.axis text {
+    font-size: 12px;
+    fill: #666;
+}
+
+.plot-title {
+    font-size: 14px;
+    font-weight: bold;
+    fill: #333;
+}
+
+.axis-label {
+    font-size: 12px;
+    fill: #666;
+}
+
+.bar {
+    fill: #4682b4;
+    transition: fill 0.2s;
+}
+
+.bar:hover {
+    fill: #5c9bd1;
 }

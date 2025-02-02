@@ -55,3 +55,12 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+
+# node
+node_modules/
+.npm/
+jest.*
+.babelrc
+package-lock.json
+package.json

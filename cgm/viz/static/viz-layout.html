@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>CGM Graph Visualization</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <link rel="stylesheet" href="/static/css/viz-styles.css">
     <link rel="stylesheet" href="/static/css/sampling-controls.css">
 </head>
@@ -24,14 +23,15 @@
             </div>
         </div>
     </div>
-    <script src="/static/js/sampling-controls.js"></script>
-    <script src="/static/js/viz-graph.js"></script>
-    <script>
+    <script type="module">
+        import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+        import { GraphVisualization } from '/static/js/viz-graph.js';
+        
         // Initialize visualization after both DOM and resources are loaded
         let initialized = false;
         
-        function initializeViz() {
-            if (!initialized && !window.graphViz) {
+        async function initializeViz() {
+            if (!initialized) {
                 try {
                     window.graphViz = new GraphVisualization();
                     initialized = true;
@@ -41,10 +41,8 @@
             }
         }
 
-        // Try to initialize after DOM content loads
-        document.addEventListener('DOMContentLoaded', initializeViz);
-        // Ensure initialization after all resources load
-        window.addEventListener('load', initializeViz);
+        // Initialize immediately since we're using modules
+        initializeViz();
 
         // Global error handler
         window.addEventListener('error', event => console.error('Script Error:', event.error));
