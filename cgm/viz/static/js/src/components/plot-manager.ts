@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
 import { D3Selection, D3DivSelection, PlotData } from '../types.js';
-import { Plot, DistributionPlot } from '../components/plot.js';
+import { Plot, DistributionPlot } from './plot.js';
 
 export class PlotManager {
     private container: D3DivSelection;

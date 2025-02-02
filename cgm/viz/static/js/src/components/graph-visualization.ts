@@ -12,8 +12,8 @@ import {
     NodeSelection,
     LinkSelection
 } from '../types.js';
-import { PlotManager } from '../components/plot-manager.js';
-import { SamplingControls } from '../components/sampling-controls.js';
+import { PlotManager } from './plot-manager.js';
+import { SamplingControls } from './sampling-controls.js';
 
 interface HTMLElementWithStyle extends HTMLElement {
     style: CSSStyleDeclaration;

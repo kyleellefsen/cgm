@@ -25,13 +25,14 @@ export interface SimulationNode extends Node {
 }
 
 export interface Link {
-    source: string | Node;
-    target: string | Node;
+    source: string | Node | SimulationNode;
+    target: string | Node | SimulationNode;
 }
 
 export interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
     source: SimulationNode;
     target: SimulationNode;
+    id?: string;
 }
 
 export interface GraphData {
