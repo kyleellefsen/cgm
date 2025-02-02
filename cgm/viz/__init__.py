@@ -12,7 +12,7 @@ from typing import Optional, Dict, List, Any
 import pathlib
 import threading
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 import time
 
@@ -37,6 +37,7 @@ class SamplingRequest(BaseModel):
     method: str = "forward"
     num_samples: int = 1000
     conditions: Dict[str, int] = {}
+    target_variable: Optional[str] = None  # Variable to get samples for
     options: SamplingOptions = SamplingOptions()
 
 class SamplingResponse(BaseModel):
@@ -44,32 +45,68 @@ class SamplingResponse(BaseModel):
     accepted_samples: int
     rejected_samples: int
     samples: List[int]
-    seed_used: int  # Add field to return the seed that was used
+    seed_used: int
+    target_variable: str  # Name of the variable these samples are for
 
 @dataclass
 class State:
     """Global visualization state with convenient property accessors."""
-    _app: FastAPI = FastAPI()
+    _app: FastAPI = field(default_factory=FastAPI)
     _current_graph: Optional[cgm.CG] = None
     _graph_state: Optional[cgm.GraphState] = None
     _server_thread: Optional[threading.Thread] = None
     _port: int = 5050
-    _rng: np.random.Generator = np.random.default_rng()
-    _current_seed: Optional[int] = None  # Track current seed
+    _rng: np.random.Generator = field(default_factory=lambda: np.random.default_rng())
+    _current_seed: Optional[int] = None
+    _current_samples: Optional[sampling.SampleArray] = None
+    _samples_metadata: Dict[str, Any] = field(default_factory=lambda: {
+        'seed': None,
+        'timestamp': None,
+        'num_samples': 0,
+        'conditions': {}
+    })
     
     def set_seed(self, seed: Optional[int] = None) -> int:
-        """Set the random seed and return the seed used.
-        
-        If no seed is provided, generates one based on current time.
-        Returns the seed that was used for reproducibility.
-        """
+        """Set the random seed and return the seed used."""
         if seed is None:
-            # Generate a seed from current time if none provided
             seed = int(time.time() * 1000) & 0xFFFFFFFF
         
         self._current_seed = seed
         self._rng = np.random.default_rng(seed)
         return seed
+    
+    def clear_samples(self):
+        """Clear the current samples and metadata."""
+        self._current_samples = None
+        self._samples_metadata = {
+            'seed': None,
+            'timestamp': None,
+            'num_samples': 0,
+            'conditions': {}
+        }
+    
+    def get_node_samples(self, node_name: str) -> Optional[List[int]]:
+        """Get samples for a specific node from the cached samples.
+        
+        Args:
+            node_name: Name of the node to get samples for
+            
+        Returns:
+            List of samples if available, None if no samples exist
+        """
+        if self._current_samples is None:
+            return None
+            
+        try:
+            node_idx = self._current_samples.schema.var_to_idx[node_name]
+            return self._current_samples.values[:, node_idx].tolist()
+        except (KeyError, IndexError):
+            return None
+    
+    def store_samples(self, samples: sampling.SampleArray, metadata: Dict[str, Any]):
+        """Store new samples and their metadata."""
+        self._current_samples = samples
+        self._samples_metadata = metadata
     
     @property
     def graph(self): return self._current_graph
@@ -182,38 +219,105 @@ async def generate_samples(request: SamplingRequest) -> SamplingResponse:
         state = _state.graph.condition(**request.conditions)
         
         # Create the sampling certificate
-        # Note: Currently only forward sampling is supported
-        # TODO: Add support for other sampling methods when implemented
-        cert = ForwardSamplingCertificate(state)
+        try:
+            cert = ForwardSamplingCertificate(state)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid sampling conditions: {str(e)}"
+            )
             
         # Generate samples
-        samples, _ = sampling.get_n_samples(
-            _state.graph,
-            _state._rng,
-            num_samples=request.num_samples,
-            state=state,
-            certificate=cert,
-            return_array=True
-        )
+        try:
+            sample_array, _ = sampling.get_n_samples(
+                _state.graph,
+                _state._rng,
+                num_samples=request.num_samples,
+                state=state,
+                certificate=cert,
+                return_array=True
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Sampling failed: {str(e)}"
+            )
         
-        # Process results
-        result = SamplingResponse(
-            total_samples=samples.shape[0],
-            accepted_samples=samples.shape[0],  # For methods that can reject samples
-            rejected_samples=0,  # For methods that can reject samples
-            samples=samples.values.tolist(),  # Convert numpy array to list
-            seed_used=seed_used  # Return the seed that was used
-        )
+        if not isinstance(sample_array, sampling.SampleArray):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unexpected sample format: {type(sample_array)}"
+            )
         
-        # Cache results if requested
-        if request.options.cache_results:
-            # TODO: Implement caching mechanism
-            pass
+        # Store samples and metadata
+        metadata = {
+            'seed': seed_used,
+            'timestamp': time.time(),
+            'num_samples': request.num_samples,
+            'conditions': request.conditions
+        }
+        _state.store_samples(sample_array, metadata)
+        
+        # Process results for the target variable (if specified)
+        try:
+            target_var = request.target_variable
+            if target_var is None:
+                target_var = _state.graph.nodes[0].name
+            
+            samples = _state.get_node_samples(target_var)
+            if samples is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown variable: {target_var}"
+                )
+            
+            result = SamplingResponse(
+                total_samples=len(samples),
+                accepted_samples=len(samples),
+                rejected_samples=0,
+                samples=samples,
+                seed_used=seed_used,
+                target_variable=target_var
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to process sampling results: {str(e)}"
+            )
             
         return result
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = f"Unexpected error during sampling: {str(e)}\n{traceback.format_exc()}"
+        print(error_detail)
+        raise HTTPException(status_code=500, detail=error_detail)
+
+@_state._app.get("/api/node_distribution/{node_name}")
+async def get_node_distribution(node_name: str) -> Dict[str, Any]:
+    """Get the distribution for a specific node from cached samples."""
+    if not _state.graph:
+        raise HTTPException(status_code=400, detail="No graph loaded")
+        
+    if _state._current_samples is None:
+        raise HTTPException(
+            status_code=400, 
+            detail="No samples available. Generate samples first."
+        )
+    
+    samples = _state.get_node_samples(node_name)
+    if samples is None:
+        raise HTTPException(status_code=400, detail=f"Unknown node: {node_name}")
+    
+    return {
+        "samples": samples,
+        "metadata": _state._samples_metadata,
+        "node": node_name
+    }
 
 def start_server() -> None:
     """Start the visualization server in a background thread."""
