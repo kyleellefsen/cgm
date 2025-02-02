@@ -714,9 +714,6 @@ export class GraphVisualization {
                     console.log('Updating existing plot');
                     this.plotManager.updatePlot('selected-node', plotData);
                 }
-                
-                // Force layout recalculation
-                window.dispatchEvent(new Event('resize'));
             } else {
                 console.error('Failed to fetch samples:', await response.text());
             }
@@ -906,5 +903,4 @@ export class GraphVisualization {
         this.labelsGroup.selectAll<SVGTextElement, SimulationNode>(".node-states")
             .attr("x", d => d.x || 0)
             .attr("y", d => (d.y || 0) + this.nodeHeight);
-    }
-} 
+    } 
