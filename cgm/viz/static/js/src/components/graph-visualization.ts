@@ -383,11 +383,9 @@ export class GraphVisualization {
             }
         }
         
-        console.log('Current nodes:', Array.from(this.simulationNodes.values()));
         
         // Update links
         this.simulationLinks.clear();
-        console.log('Processing links:', newData.links);
         
         newData.links.forEach(link => {
             // Handle both string IDs and object references
@@ -396,7 +394,6 @@ export class GraphVisualization {
             const targetId = typeof link.target === 'string' ? link.target : 
                            'id' in link.target ? link.target.id : '';
             
-            console.log('Processing link:', sourceId, '->', targetId);
             
             const sourceNode = this.simulationNodes.get(sourceId);
             const targetNode = this.simulationNodes.get(targetId);
@@ -408,13 +405,8 @@ export class GraphVisualization {
                     target: targetNode,
                     id: linkId
                 });
-                console.log('Created link:', linkId);
-            } else {
-                console.warn(`Could not create link: missing ${!sourceNode ? 'source' : 'target'} node (${sourceId} -> ${targetId})`);
             }
         });
-        
-        console.log('Current links:', Array.from(this.simulationLinks.values()));
         
         // Update simulation with current data
         const nodes = Array.from(this.simulationNodes.values());
@@ -447,13 +439,22 @@ export class GraphVisualization {
                 this.updateTableHighlighting(updatedNode);
                 
                 // Update plot data if it exists
-                const plotData = {
-                    variable: updatedNode.id,
-                    title: `Distribution for ${updatedNode.id}`,
-                    samples: this.generateDummySamples(updatedNode)
-                };
                 if (this.plotManager && this.plotManager.hasPlot('selected-node')) {
-                    this.plotManager.updatePlot('selected-node', plotData);
+                    // Fetch fresh distribution data for the node
+                    fetch(`/api/node_distribution/${updatedNode.id}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && this.plotManager) {
+                                const plotData = {
+                                    variable: updatedNode.id,
+                                    title: `Distribution for ${updatedNode.id}`,
+                                    x_values: data.result.x_values,
+                                    y_values: data.result.y_values
+                                };
+                                this.plotManager.updatePlot('selected-node', plotData);
+                            }
+                        })
+                        .catch(error => console.error('Error updating plot:', error));
                 }
             }
         }
@@ -669,21 +670,27 @@ export class GraphVisualization {
             delete this.currentGraphState.conditions[d.id];
         }
 
-        // Try to get samples for this node
+        // Try to get distribution for this node
         try {
-            console.log('Fetching samples for node:', d.id);
+            console.log('Fetching distribution for node:', d.id);
             const response = await fetch(`/api/node_distribution/${d.id}`);
             console.log('Response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('Received samples:', data);
+                console.log('Received distribution data:', data);
+                
+                if (!data.success) {
+                    console.error('Distribution request failed:', data.error?.message);
+                    return;
+                }
                 
                 // Create or update the distribution plot
                 const plotData = {
                     variable: d.id,
                     title: `Distribution for ${d.id}`,
-                    samples: data.samples
+                    x_values: data.result.x_values,
+                    y_values: data.result.y_values
                 };
                 console.log('Plot data:', plotData);
                 
@@ -715,10 +722,10 @@ export class GraphVisualization {
                     this.plotManager.updatePlot('selected-node', plotData);
                 }
             } else {
-                console.error('Failed to fetch samples:', await response.text());
+                console.error('Failed to fetch distribution:', await response.text());
             }
         } catch (error) {
-            console.error('Error fetching samples:', error);
+            console.error('Error fetching distribution:', error);
         }
 
         // If auto-update is enabled and we have a sampling control instance
@@ -726,37 +733,6 @@ export class GraphVisualization {
             this.samplingControls.getSettings().autoUpdate) {
             this.samplingControls.generateSamples();
         }
-    }
-
-    // Temporary method to generate dummy samples based on node state
-    generateDummySamples(node: SimulationNode): number[] {
-        const numSamples = 1000;
-        const samples: number[] = [];
-        const numStates = node.states;
-        
-        // If node is conditioned, generate samples mostly matching that state
-        if (node.conditioned_state >= 0) {
-            const prob = 0.8;  // 80% probability of matching conditioned state
-            for (let i = 0; i < numSamples; i++) {
-                if (Math.random() < prob) {
-                    samples.push(node.conditioned_state);
-                } else {
-                    // Randomly choose one of the other states
-                    let otherState;
-                    do {
-                        otherState = Math.floor(Math.random() * numStates);
-                    } while (otherState === node.conditioned_state);
-                    samples.push(otherState);
-                }
-            }
-        } else {
-            // If not conditioned, generate roughly uniform distribution
-            for (let i = 0; i < numSamples; i++) {
-                samples.push(Math.floor(Math.random() * numStates));
-            }
-        }
-        
-        return samples;
     }
 
     async handleSamplingRequest(settings: SamplingSettings): Promise<SamplingResult> {
@@ -774,7 +750,6 @@ export class GraphVisualization {
         const requestData = {
             method,
             num_samples: sampleSize,
-            conditions: this.currentGraphState.conditions,
             options: {
                 burn_in: burnIn,
                 thinning,
@@ -797,22 +772,34 @@ export class GraphVisualization {
             }
 
             const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error?.message || 'Unknown sampling error');
+            }
+            
             this.currentGraphState.lastSamplingResult = result;
             
-            // Update distribution plot if it exists
-            if (this.plotManager && this.plotManager.hasPlot('selected-node')) {
-                const plotData = {
-                    variable: this.selectedNode?.id || '',
-                    title: `Distribution for ${this.selectedNode?.id || ''}`,
-                    samples: result.samples
-                };
-                this.plotManager.updatePlot('selected-node', plotData);
+            // Update distribution plot if we have a selected node
+            if (this.selectedNode && this.plotManager && this.plotManager.hasPlot('selected-node')) {
+                // Fetch fresh distribution for the selected node
+                const distResponse = await fetch(`/api/node_distribution/${this.selectedNode.id}`);
+                if (distResponse.ok) {
+                    const distData = await distResponse.json();
+                    if (distData.success) {
+                        const plotData = {
+                            variable: this.selectedNode.id,
+                            title: `Distribution for ${this.selectedNode.id}`,
+                            x_values: distData.result.x_values,
+                            y_values: distData.result.y_values
+                        };
+                        this.plotManager.updatePlot('selected-node', plotData);
+                    }
+                }
             }
 
             return {
-                totalSamples: result.total_samples,
-                acceptedSamples: result.accepted_samples,
-                rejectedSamples: result.rejected_samples
+                totalSamples: result.result.total_samples,
+                acceptedSamples: result.result.accepted_samples,
+                rejectedSamples: result.result.rejected_samples
             };
         } catch (error) {
             console.error('Error during sampling:', error);

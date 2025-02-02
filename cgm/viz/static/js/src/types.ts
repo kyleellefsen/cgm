@@ -48,7 +48,8 @@ export interface GraphState {
 export interface PlotData {
     variable?: string;
     title?: string;
-    samples?: number[];
+    x_values?: number[];
+    y_values?: number[];
 }
 
 export interface SamplingSettings {
@@ -100,4 +101,24 @@ declare module 'd3' {
         empty(): boolean;
         node(): Element | null;
     }
+}
+
+// Add new types for node distribution API
+export interface NodeDistributionError {
+    error_type: string;
+    message: string;
+    details?: string;
+}
+
+export interface NodeDistributionSuccess {
+    node_name: string;
+    codomain: "counts" | "normalized_counts";
+    x_values: number[];
+    y_values: number[];
+}
+
+export interface NodeDistributionResponse {
+    success: boolean;
+    error?: NodeDistributionError;
+    result?: NodeDistributionSuccess;
 } 

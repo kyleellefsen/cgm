@@ -148,7 +148,7 @@ export class DistributionPlot extends Plot {
             .range([this.height, 0]);
             
         // Process initial data
-        const probs = this.processData(data.samples || []);
+        const probs = this.processData(data);
         
         // Set initial domains
         this.xScale.domain(probs.map(d => d.state));
@@ -158,31 +158,25 @@ export class DistributionPlot extends Plot {
         this.initialize();
     }
 
-    private processData(samples: number[]): ProbabilityData[] {
-        if (!samples || !samples.length) {
+    private processData(data: PlotData): ProbabilityData[] {
+        if (!data.x_values || !data.y_values || data.x_values.length === 0) {
             return [];
         }
         
-        // Count occurrences of each state
-        const counts = new Map<number, number>();
-        samples.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
-        
-        // Convert to probability
-        const probs = Array.from(counts.entries()).map(([state, count]) => ({
+        // Map x_values and y_values to probability data format
+        return data.x_values.map((state, i) => ({
             state,
-            probability: count / samples.length
+            probability: data.y_values![i]
         }));
-        
-        // Sort by state
-        return probs.sort((a, b) => a.state - b.state);
     }
 
     protected shouldUpdate(newData: PlotData): boolean {
         if (!this.previousData) return true;
-        if (!newData || !newData.samples) return true;
+        if (!newData.x_values || !newData.y_values) return true;
+        if (!this.previousData.x_values || !this.previousData.y_values) return true;
         
-        const oldProbs = this.processData(this.previousData.samples || []);
-        const newProbs = this.processData(newData.samples || []);
+        const oldProbs = this.processData(this.previousData);
+        const newProbs = this.processData(newData);
         
         if (oldProbs.length !== newProbs.length) return true;
         
@@ -194,13 +188,13 @@ export class DistributionPlot extends Plot {
     }
 
     public render(): void {
-        const {samples, title} = this.data;
-        if (!samples || !samples.length) {
+        const {x_values, y_values, title} = this.data;
+        if (!x_values || !y_values || x_values.length === 0) {
             return;
         }
         
         // Process the data
-        const probs = this.processData(samples);
+        const probs = this.processData(this.data);
         if (!probs.length) {
             return;
         }
