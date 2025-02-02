@@ -59,8 +59,29 @@ body {
 }
 
 .lower-panel {
-    flex: 1 1 50%;
-    border-top: 1px solid var(--resizer-color);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.sampling-controls {
+    flex: 0 0 auto;
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.plots-container {
+    flex: 1 1 auto;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.plot-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 12px;
 }
 
 /* Resizers */
@@ -278,26 +299,6 @@ body {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #e5e7eb;
-}
-
-.plots-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-    height: calc(100% - 60px); /* Account for header */
-    overflow-y: auto;
-}
-
-.plot-container {
-    background: white;
-    border: 1px solid var(--resizer-color);
-    border-radius: 4px;
-    min-height: 200px;
-    position: relative;
-    overflow: hidden;
-    padding: 10px;
-    height: 300px;  /* Set a fixed height for now */
 }
 
 .plot-container svg {

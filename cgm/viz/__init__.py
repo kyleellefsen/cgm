@@ -134,24 +134,26 @@ class State:
         
         # Create new graph state if needed
         if not self._graph_state:
+            print(f"Creating new graph state for condition: {node}={value}")
             self._graph_state = cgm.GraphState.create(self._current_graph)
             
         if node not in self._graph_state.schema.var_to_idx: return False
         
-        idx = self._graph_state.schema.var_to_idx[node]
-        new_values, new_mask = self._graph_state.values.copy(), self._graph_state.mask.copy()
+        # Get current conditions
+        conditions = self.conditioned_nodes.copy()
+        print(f"Current conditions before update: {conditions}")
         
+        # Update or remove the condition for the specified node
         if value is None:
-            new_values[idx], new_mask[idx] = -1, False
+            conditions.pop(node, None)
+            print(f"Removed condition for {node}")
         else:
-            new_values[idx], new_mask[idx] = value, True
+            conditions[node] = value
+            print(f"Added condition: {node}={value}")
             
-        self._graph_state = cgm.GraphState(
-            network=self._current_graph,
-            schema=self._graph_state.schema,
-            _values=new_values,
-            _mask=new_mask
-        )
+        # Create a new state with the updated conditions
+        print(f"Creating new state with conditions: {conditions}")
+        self._graph_state = self._current_graph.condition(**conditions)
         show(self._current_graph, self._graph_state, False)
         return True
 
@@ -215,8 +217,15 @@ async def generate_samples(request: SamplingRequest) -> SamplingResponse:
         # Set random seed and get the seed used
         seed_used = _state.set_seed(request.options.random_seed)
         
-        # Create the conditioned state
-        state = _state.graph.condition(**request.conditions)
+        # Start with existing graph state if it exists, otherwise create new state with request conditions
+        if _state.state:
+            # If we have existing state, create new state with combined conditions
+            combined_conditions = _state.conditioned_nodes.copy()
+            combined_conditions.update(request.conditions)
+            state = _state.graph.condition(**combined_conditions)
+        else:
+            # If no existing state, create new state with just request conditions
+            state = _state.graph.condition(**request.conditions)
         
         # Create the sampling certificate
         try:
@@ -224,7 +233,12 @@ async def generate_samples(request: SamplingRequest) -> SamplingResponse:
         except Exception as e:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Invalid sampling conditions: {str(e)}"
+                detail=(
+                    f"Cannot use forward sampling with these conditions: {str(e)}. "
+                    "Forward sampling requires that if a node is conditioned, all of its ancestors "
+                    "must also be conditioned. Consider using a different sampling method or "
+                    "adjusting your conditions to satisfy this requirement."
+                )
             )
             
         # Generate samples
