@@ -525,34 +525,6 @@ export class GraphVisualization {
             
             // Toggle 'conditioned' class
             node.classed("conditioned", isConditioned);
-            
-            // Update ellipse styling
-            node.select<SVGEllipseElement>("ellipse")
-                .attr("rx", (d.width || 0) / 2)
-                .attr("ry", (d.height || 0) / 2)
-                .style("fill", isConditioned ? "#e0e0e0" : "#fff")
-                .style("stroke", isConditioned ? "#666" : "#999")
-                .style("stroke-width", isConditioned ? "2px" : "1px");
-                
-            // Update text
-            node.select<SVGTextElement>("text.node-label")
-                .text(d.id)
-                .style("font-weight", isConditioned ? "bold" : "normal");
-                
-            // Add or update state indicator if conditioned
-            if (isConditioned) {
-                let stateIndicator = node.select<SVGTextElement>(".state-indicator");
-                if (stateIndicator.empty()) {
-                    stateIndicator = node.append<SVGTextElement>("text")
-                        .attr("class", "state-indicator")
-                        .attr("dy", "20");
-                }
-                stateIndicator
-                    .text(`State: ${d.conditioned_state}`)
-                    .attr("text-anchor", "middle");
-            } else {
-                node.select<SVGTextElement>(".state-indicator").remove();
-            }
         });
         
         // Update links
@@ -588,7 +560,13 @@ export class GraphVisualization {
             .attr("class", "node-states");
             
         states.merge(stateEnter as any)
-            .text(d => `states: ${d.states}`);
+            .text(d => {
+                const totalStates = d.states;
+                const isConditioned = d.conditioned_state >= 0;
+                return isConditioned ? 
+                    `state: ${d.conditioned_state}/${totalStates}` : 
+                    `states: ${totalStates}`;
+            });
     }
 
     calculateNodeWidth(text: string): number {
