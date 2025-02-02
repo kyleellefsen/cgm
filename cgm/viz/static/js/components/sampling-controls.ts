@@ -1,5 +1,15 @@
+import { SamplingSettings, SamplingResult } from '../types';
+
 export class SamplingControls {
-    constructor(container, onSamplingRequest) {
+    private container: HTMLElement;
+    private onSamplingRequest: (settings: SamplingSettings) => Promise<SamplingResult>;
+    private isGenerating: boolean;
+    private lastUpdateTime: Date | null;
+
+    constructor(
+        container: HTMLElement, 
+        onSamplingRequest: (settings: SamplingSettings) => Promise<SamplingResult>
+    ) {
         this.container = container;
         this.onSamplingRequest = onSamplingRequest;
         this.isGenerating = false;
@@ -7,13 +17,13 @@ export class SamplingControls {
         this.initialize();
     }
 
-    initialize() {
+    private initialize(): void {
         this.container.innerHTML = this.createTemplate();
         this.setupEventListeners();
         this.updateStatus('Idle');
     }
 
-    createTemplate() {
+    private createTemplate(): string {
         return `
             <div class="sampling-controls">
                 <div class="sampling-controls-header">Sampling Controls</div>
@@ -116,9 +126,9 @@ export class SamplingControls {
         `;
     }
 
-    setupEventListeners() {
+    private setupEventListeners(): void {
         // Method selector
-        const methodSelect = this.container.querySelector('#sampling-method');
+        const methodSelect = this.container.querySelector('#sampling-method') as HTMLSelectElement;
         methodSelect.addEventListener('change', () => {
             this.toggleGibbsOptions(methodSelect.value === 'gibbs');
         });
@@ -126,69 +136,71 @@ export class SamplingControls {
         // Sample size presets
         this.container.querySelectorAll('.preset-button').forEach(button => {
             button.addEventListener('click', () => {
-                const size = parseInt(button.dataset.size);
-                this.container.querySelector('#sample-size').value = size;
+                const size = parseInt((button as HTMLElement).dataset.size || '1000');
+                (this.container.querySelector('#sample-size') as HTMLInputElement).value = size.toString();
             });
         });
 
         // Advanced options toggle
-        const advancedToggle = this.container.querySelector('#advanced-toggle');
-        const advancedContent = this.container.querySelector('#advanced-content');
+        const advancedToggle = this.container.querySelector('#advanced-toggle') as HTMLElement;
+        const advancedContent = this.container.querySelector('#advanced-content') as HTMLElement;
         advancedToggle.addEventListener('click', () => {
             advancedContent.classList.toggle('expanded');
-            advancedToggle.querySelector('.toggle-icon').textContent = 
-                advancedContent.classList.contains('expanded') ? '▼' : '▶';
+            const toggleIcon = advancedToggle.querySelector('.toggle-icon') as HTMLElement;
+            toggleIcon.textContent = advancedContent.classList.contains('expanded') ? '▼' : '▶';
         });
 
         // Auto-update toggle
-        const autoUpdateToggle = this.container.querySelector('#auto-update');
+        const autoUpdateToggle = this.container.querySelector('#auto-update') as HTMLInputElement;
         autoUpdateToggle.addEventListener('change', () => {
             if (autoUpdateToggle.checked) {
-                const sampleSize = parseInt(this.container.querySelector('#sample-size').value);
+                const sampleSizeInput = this.container.querySelector('#sample-size') as HTMLInputElement;
+                const sampleSize = parseInt(sampleSizeInput.value);
                 if (sampleSize > 1000) {
-                    this.container.querySelector('#sample-size').value = 1000;
+                    sampleSizeInput.value = '1000';
                 }
             }
         });
 
         // Sample size input validation
-        const sampleSizeInput = this.container.querySelector('#sample-size');
+        const sampleSizeInput = this.container.querySelector('#sample-size') as HTMLInputElement;
         sampleSizeInput.addEventListener('change', () => {
-            const autoUpdate = this.container.querySelector('#auto-update').checked;
+            const autoUpdate = (this.container.querySelector('#auto-update') as HTMLInputElement).checked;
             if (autoUpdate && parseInt(sampleSizeInput.value) > 1000) {
-                sampleSizeInput.value = 1000;
+                sampleSizeInput.value = '1000';
             }
         });
 
         // Generate button
-        const generateButton = this.container.querySelector('#generate-button');
+        const generateButton = this.container.querySelector('#generate-button') as HTMLButtonElement;
         generateButton.addEventListener('click', () => this.generateSamples());
     }
 
-    toggleGibbsOptions(show) {
+    private toggleGibbsOptions(show: boolean): void {
         this.container.querySelectorAll('.gibbs-only').forEach(el => {
-            el.style.display = show ? 'block' : 'none';
+            (el as HTMLElement).style.display = show ? 'block' : 'none';
         });
     }
 
-    getSettings() {
+    public getSettings(): SamplingSettings {
         return {
-            method: this.container.querySelector('#sampling-method').value,
-            sampleSize: parseInt(this.container.querySelector('#sample-size').value),
-            autoUpdate: this.container.querySelector('#auto-update').checked,
-            burnIn: parseInt(this.container.querySelector('#burn-in').value),
-            thinning: parseInt(this.container.querySelector('#thinning').value),
-            randomSeed: this.container.querySelector('#random-seed').value || null,
-            cacheResults: this.container.querySelector('#cache-results').checked
+            method: (this.container.querySelector('#sampling-method') as HTMLSelectElement).value,
+            sampleSize: parseInt((this.container.querySelector('#sample-size') as HTMLInputElement).value),
+            autoUpdate: (this.container.querySelector('#auto-update') as HTMLInputElement).checked,
+            burnIn: parseInt((this.container.querySelector('#burn-in') as HTMLInputElement).value),
+            thinning: parseInt((this.container.querySelector('#thinning') as HTMLInputElement).value),
+            randomSeed: (this.container.querySelector('#random-seed') as HTMLInputElement).value ? 
+                parseInt((this.container.querySelector('#random-seed') as HTMLInputElement).value) : null,
+            cacheResults: (this.container.querySelector('#cache-results') as HTMLInputElement).checked
         };
     }
 
-    async generateSamples() {
+    public async generateSamples(): Promise<void> {
         if (this.isGenerating) return;
 
         this.isGenerating = true;
         this.updateStatus('Generating...');
-        this.container.querySelector('#generate-button').disabled = true;
+        (this.container.querySelector('#generate-button') as HTMLButtonElement).disabled = true;
 
         const startTime = performance.now();
         const settings = this.getSettings();
@@ -198,15 +210,15 @@ export class SamplingControls {
             this.updateStats(result, performance.now() - startTime);
         } catch (error) {
             console.error('Sampling failed:', error);
-            this.updateStatus('Error: ' + error.message);
+            this.updateStatus(`Error: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             this.isGenerating = false;
-            this.container.querySelector('#generate-button').disabled = false;
+            (this.container.querySelector('#generate-button') as HTMLButtonElement).disabled = false;
             this.updateStatus('Idle');
         }
     }
 
-    updateStats(result, timeMs) {
+    private updateStats(result: SamplingResult, timeMs: number): void {
         const {
             totalSamples = 0,
             acceptedSamples = 0,
@@ -214,31 +226,31 @@ export class SamplingControls {
         } = result;
 
         const acceptedPercentage = totalSamples ? 
-            ((acceptedSamples / totalSamples) * 100).toFixed(1) : 0;
+            ((acceptedSamples / totalSamples) * 100).toFixed(1) : '0';
         const rejectedPercentage = totalSamples ? 
-            ((rejectedSamples / totalSamples) * 100).toFixed(1) : 0;
+            ((rejectedSamples / totalSamples) * 100).toFixed(1) : '0';
 
-        this.container.querySelector('#stat-total').textContent = totalSamples;
-        this.container.querySelector('#stat-accepted').textContent = 
+        (this.container.querySelector('#stat-total') as HTMLElement).textContent = totalSamples.toString();
+        (this.container.querySelector('#stat-accepted') as HTMLElement).textContent = 
             `${acceptedSamples} (${acceptedPercentage}%)`;
-        this.container.querySelector('#stat-rejected').textContent = 
+        (this.container.querySelector('#stat-rejected') as HTMLElement).textContent = 
             `${rejectedSamples} (${rejectedPercentage}%)`;
-        this.container.querySelector('#stat-time').textContent = 
+        (this.container.querySelector('#stat-time') as HTMLElement).textContent = 
             `${(timeMs / 1000).toFixed(2)}s`;
 
         this.lastUpdateTime = new Date();
         this.updateLastUpdateTime();
     }
 
-    updateStatus(status) {
-        const statusText = this.container.querySelector('#status-text');
+    private updateStatus(status: string): void {
+        const statusText = this.container.querySelector('#status-text') as HTMLElement;
         statusText.textContent = `Status: ${status}`;
         statusText.classList.toggle('generating', status === 'Generating...');
         this.updateLastUpdateTime();
     }
 
-    updateLastUpdateTime() {
-        const lastUpdateEl = this.container.querySelector('#last-update');
+    private updateLastUpdateTime(): void {
+        const lastUpdateEl = this.container.querySelector('#last-update') as HTMLElement;
         if (this.lastUpdateTime) {
             const timeStr = this.lastUpdateTime.toLocaleTimeString();
             lastUpdateEl.textContent = `Last Updated: ${timeStr}`;
