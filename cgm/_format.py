@@ -342,6 +342,10 @@ class FactorTableView:
         """Property access for default table view."""
         return _format_factor_table(self.factor)
 
+    def html(self) -> str | None:
+        """Default HTML representation."""
+        return None
+
 class CPDTableView(FactorTableView):
     """Helper class to provide both property and method access to CPD table formatting.
 

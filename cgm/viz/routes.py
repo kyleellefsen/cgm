@@ -1,7 +1,7 @@
 """FastAPI routes for the visualization module."""
 from typing import Dict
 import fastapi
-from fastapi import HTTPException, Depends
+from fastapi import Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from .state import VizState
@@ -112,13 +112,13 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
             try:
                 sample_array, _ = sampling.get_n_samples(
                     current_graph,
-                    viz_state._rng,
+                    viz_state.rng,
                     num_samples=request.num_samples,
                     state=current_state,
                     certificate=cert,
                     return_array=True
                 )
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-exception-caught
                 return m.SamplingResponse(
                     success=False,
                     error=m.SamplingResponseError(
@@ -127,7 +127,7 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
                         details=str(e)
                     )
                 )
-            
+
             if not isinstance(sample_array, sampling.SampleArray):
                 return m.SamplingResponse(
                     success=False,
@@ -136,7 +136,7 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
                         message=f"Unexpected sample format: {type(sample_array)}"
                     )
                 )
-            
+
             # Store samples and metadata
             metadata = {
                 'seed': seed_used,
@@ -156,8 +156,8 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
                     seed_used=seed_used
                 )
             )
-            
-        except Exception as e:
+
+        except Exception as e: # pylint: disable=broad-exception-caught
             import traceback
             error_detail = f"Unexpected error during sampling: {str(e)}\n{traceback.format_exc()}"
             return m.SamplingResponse(
@@ -181,8 +181,8 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
                     message="No graph loaded"
                 )
             )
-            
-        if viz_state._current_samples is None:
+
+        if viz_state.current_samples is None:
             return m.NodeDistributionResponse(
                 success=False,
                 error=m.NodeDistributionError(
