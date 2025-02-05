@@ -40,24 +40,11 @@ export class PlotManager {
         // First remove any existing plot with this id
         this.removePlot(id);
         
-        // Ensure the plots container is visible
-        this.container
-            .style("display", "block")
-            .style("visibility", "visible")
-            .style("overflow", "auto");
-        
+        // Create plot container with class and id
         const plotContainer = this.container
             .append<HTMLDivElement>("div")
             .attr("class", "plot-container")
-            .attr("id", id)
-            .style("width", "100%")
-            .style("height", "300px")
-            .style("position", "relative")
-            .style("margin-bottom", "20px")
-            .style("background", "#fff")
-            .style("border", "1px solid #ddd")
-            .style("display", "block")
-            .style("visibility", "visible") as D3DivSelection;
+            .attr("id", id);
             
         let plot: Plot | undefined;
         switch(type) {
@@ -70,7 +57,7 @@ export class PlotManager {
         }
         
         this.plots.set(id, plot);
-        plot.render();  // Explicitly call render after creation
+        plot.render();
         
         return plot;
     }

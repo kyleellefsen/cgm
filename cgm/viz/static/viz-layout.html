@@ -2,12 +2,12 @@
 <html>
 <head>
     <title>CGM Graph Visualization</title>
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/panel-styles.css">
-    <link rel="stylesheet" href="/static/css/graph-styles.css">
-    <link rel="stylesheet" href="/static/css/cpd-table-styles.css">
-    <link rel="stylesheet" href="/static/css/plot-styles.css">
-    <link rel="stylesheet" href="/static/css/sampling-controls.css">
+    <link rel="stylesheet" href="/static/css/base.css?nocache">
+    <link rel="stylesheet" href="/static/css/panel-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/graph-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/cpd-table-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/plot-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/sampling-controls.css?nocache">
     <script type="importmap">
     {
         "imports": {
@@ -15,6 +15,7 @@
             "/components/plot-manager": "/static/js/dist/components/plot-manager.js?nocache",
             "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
             "/components/plot": "/static/js/dist/components/plot.js?nocache",
+            "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
             "/types": "/static/js/dist/types.js?nocache"
         }
     }
@@ -27,47 +28,53 @@
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
         <div class="panels-container">
-            <div class="upper-panel">
-                <div class="panel-placeholder">
-                    Click a node to view its CPD table
-                </div>
-            </div>
-            <div class="horizontal-resizer" id="upper-resizer"></div>
-            <div class="middle-panel">
-                <div class="distribution-plots-container">
+            <div class="panel cpd-panel">
+                <div class="panel-header">Conditional Probability Table</div>
+                <div class="panel-content">
                     <div class="panel-placeholder">
-                        Click a node to view its distribution plot
+                        Click a node to view its CPD table
                     </div>
                 </div>
             </div>
-            <div class="horizontal-resizer" id="plot-resizer"></div>
-            <div class="lower-panel">
-                <!-- Sampling controls will be injected here -->
+            <div class="horizontal-resizer"</div>
+            <div class="panel distribution-plots-panel">
+                <div class="panel-header">Distribution Plots</div>
+                <div class="panel-content">
+                    <div class="distribution-plots-container">
+                        <div class="panel-placeholder">
+                            Click a node to view its distribution plot
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="horizontal-resizer"</div>
+            <div class="panel sampling-controls-panel">
+                <div class="panel-header">Sampling Controls</div>
+                <div class="panel-content">
+                    <!-- Sampling controls will be injected here -->
+                </div>
             </div>
         </div>
     </div>
     <script type="module">
         import * as d3 from 'd3';
-        import { GraphVisualization } from '/static/js/dist/components/graph-visualization.js';
-        
-        // Initialize visualization after both DOM and resources are loaded
-        let initialized = false;
+        import { GraphVisualization } from '/components/graph-visualization';
         
         async function initializeViz() {
-            if (!initialized) {
-                try {
-                    window.graphViz = new GraphVisualization();
-                    initialized = true;
-                } catch (error) {
-                    console.error('Failed to initialize visualization:', error);
-                }
+            try {
+                console.log('Initializing visualization...');
+                window.graphViz = new GraphVisualization();
+            } catch (error) {
+                console.error('Failed to initialize visualization:', error);
             }
         }
 
-        // Initialize immediately since we're using modules
-        initializeViz();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeViz);
+        } else {
+            initializeViz();
+        }
 
-        // Global error handler
         window.addEventListener('error', event => console.error('Script Error:', event.error));
     </script>
 </body>
