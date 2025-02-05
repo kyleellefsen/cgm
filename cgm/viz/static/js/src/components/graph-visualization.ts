@@ -10,10 +10,12 @@ import {
     SamplingSettings,
     SamplingResult,
     NodeSelection,
-    LinkSelection
+    LinkSelection,
+    PanelDimensions
 } from '../types';
 import { PlotManager } from '/components/plot-manager';
 import { SamplingControls } from '/components/sampling-controls';
+import { PanelManager } from '/components/panel-manager';
 
 interface HTMLElementWithStyle extends HTMLElement {
     style: CSSStyleDeclaration;
@@ -37,150 +39,11 @@ export class GraphVisualization {
     private plotManager?: PlotManager;
     private currentGraphState!: GraphState;
     private samplingControls!: SamplingControls | null;
+    private panelManager: PanelManager;
 
-
-    setupVerticalResizer() {
-        const resizer = document.getElementById('vertical-resizer');
-        const graphContainer = document.querySelector('.graph-container') as HTMLElementWithStyle;
-        const panelsContainer = document.querySelector('.panels-container') as HTMLElementWithStyle;
+    constructor(panelManager: PanelManager) {
+        this.panelManager = panelManager;
         
-        let isResizing = false;
-        let startX: number;
-        let startGraphWidth: number;
-        let startPanelsWidth: number;
-        
-        const startResize = (e: MouseEvent) => {
-            isResizing = true;
-            resizer?.classList.add('resizing');
-            startX = e.pageX;
-            startGraphWidth = graphContainer?.offsetWidth || 0;
-            startPanelsWidth = panelsContainer?.offsetWidth || 0;
-            document.documentElement.style.cursor = 'col-resize';
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        const resize = (e: MouseEvent) => {
-            if (!isResizing || !graphContainer || !panelsContainer) return;
-            
-            const dx = e.pageX - startX;
-            
-            // Calculate new widths
-            const newGraphWidth = startGraphWidth + dx;
-            const newPanelsWidth = startPanelsWidth - dx;
-            
-            // Apply minimum widths
-            if (newGraphWidth >= 200 && newPanelsWidth >= 200) {
-                graphContainer.style.flex = 'none';
-                panelsContainer.style.flex = 'none';
-                graphContainer.style.width = `${newGraphWidth}px`;
-                panelsContainer.style.width = `${newPanelsWidth}px`;
-                
-                // Update visualization width
-                this.width = this.calculateWidth();
-                this.svg.attr("width", this.width);
-                
-                // Update force simulation center
-                this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
-                this.simulation.alpha(0.3).restart();
-            }
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        const stopResize = (e: MouseEvent) => {
-            if (!isResizing) return;
-            isResizing = false;
-            resizer?.classList.remove('resizing');
-            document.documentElement.style.cursor = '';
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        resizer?.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-
-        // Add window resize handler
-        window.addEventListener('resize', () => {
-            const graphContainer = document.querySelector('.graph-container') as HTMLElementWithStyle;
-            const panelsContainer = document.querySelector('.panels-container') as HTMLElementWithStyle;
-            if (graphContainer && panelsContainer) {
-                // Reset flex layout
-                graphContainer.style.flex = '1 1 70%';
-                panelsContainer.style.flex = '1 1 30%';
-                graphContainer.style.width = '';
-                panelsContainer.style.width = '';
-            }
-            
-            // Update visualization dimensions
-            this.width = this.calculateWidth();
-            this.height = window.innerHeight;
-            this.svg.attr("width", this.width)
-                .attr("height", this.height);
-            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.03))
-                .force("y", d3.forceY(this.height / 2).strength(0.03));
-            this.simulation.alpha(0.3).restart();
-        });
-    }
-
-    private setupHorizontalResizers(): void {
-        const horizontal_resizers = document.getElementsByClassName('horizontal-resizer');
-        for (const resizer of horizontal_resizers) {
-            const upperPanel = resizer.previousElementSibling as HTMLElementWithStyle;
-            const lowerPanel = resizer.nextElementSibling as HTMLElementWithStyle;
-            let isResizing = false;
-            let startY: number;
-            let startUpperHeight: number;
-            let startLowerHeight: number;
-
-            const startResize = (e: MouseEvent) => {
-                isResizing = true;
-                resizer.classList.add('resizing');
-                startY = e.pageY;
-                startUpperHeight = upperPanel.offsetHeight;
-                startLowerHeight = lowerPanel.offsetHeight;
-                document.documentElement.style.cursor = 'row-resize';
-                e.preventDefault();
-                e.stopPropagation();
-            };
-
-            const resize = (e: MouseEvent) => {
-                if (!isResizing) return;
-
-                const dy = e.pageY - startY;
-                const newUpperHeight = startUpperHeight + dy;
-                const newLowerHeight = startLowerHeight - dy;
-
-                if (newUpperHeight >= 100 && newLowerHeight >= 100) {
-                    upperPanel.style.flex = 'none';
-                    lowerPanel.style.flex = 'none';
-                    upperPanel.style.height = `${newUpperHeight}px`;
-                    lowerPanel.style.height = `${newLowerHeight}px`;
-                }
-
-                e.preventDefault();
-                e.stopPropagation();
-            };
-
-            const stopResize = () => {
-                isResizing = false;
-                resizer.classList.remove('resizing');
-                document.documentElement.style.cursor = '';
-            };
-
-        resizer.addEventListener('mousedown', startResize);
-            document.addEventListener('mousemove', resize);
-            document.addEventListener('mouseup', stopResize);
-        }
-    }
-
-    calculateWidth(): number {
-        const container = document.querySelector('.graph-container') as HTMLElementWithStyle;
-        return container?.offsetWidth || 0;
-    }
-
-    constructor() {
         // Set up constants
         this.width = this.calculateWidth();
         this.height = window.innerHeight;
@@ -192,17 +55,6 @@ export class GraphVisualization {
         this.simulationLinks = new Map(); // Store simulation links by ID
         this.selectedNode = null;
         this.samplingControls = null;
-        
-        // Add window resize handler
-        window.addEventListener('resize', () => {
-            this.width = this.calculateWidth();
-            this.height = window.innerHeight;
-            this.svg.attr("width", this.width)
-                .attr("height", this.height);
-            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.03))
-                .force("y", d3.forceY(this.height / 2).strength(0.03));
-            this.simulation.alpha(0.3).restart();
-        });
         
         // Set up SVG - clear existing content first
         d3.select(".graph-container").selectAll("svg").remove();
@@ -241,9 +93,6 @@ export class GraphVisualization {
         this.linksGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
         this.nodesGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
         this.labelsGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
-
-        // Set up accordions
-        this.setupAccordions();
         
         // Start update loop
         this.startUpdateLoop();
@@ -257,30 +106,28 @@ export class GraphVisualization {
             lastSamplingResult: null
         };
 
+        // Set up panel resize handlers
+        this.setupPanelHandlers();
     }
 
-
-    public setupAccordions(): void {
-        this.setupVerticalResizer();
-        this.setupHorizontalResizers();
-
-        document.querySelectorAll('.panel-header').forEach(header => {
-            header.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const panel = header.parentElement!;
-                const isCollapsed = panel.classList.contains('collapsed');
-                
-                // Toggle the collapsed class on the panel container
-                panel.classList.toggle('collapsed', !isCollapsed);
-                // Update header arrow by toggling collapsed class on header
-                header.classList.toggle('collapsed', !isCollapsed);
-                
-                // Update layout immediately
-                // window.dispatchEvent(new Event('resize'));
-            });
+    private setupPanelHandlers(): void {
+        // Handle graph container resizing
+        this.panelManager.onResize((event) => {
+            if (event.panelId === 'graph-container') {
+                this.width = event.dimensions.width;
+                this.height = event.dimensions.height;
+                this.svg.attr("width", this.width)
+                    .attr("height", this.height);
+                this.simulation.force("x", d3.forceX(this.width / 2).strength(0.03))
+                    .force("y", d3.forceY(this.height / 2).strength(0.03));
+                this.simulation.alpha(0.3).restart();
+            }
         });
+    }
+
+    calculateWidth(): number {
+        const container = document.querySelector('.graph-container') as HTMLElementWithStyle;
+        return container?.offsetWidth || 0;
     }
 
     async startUpdateLoop() {
@@ -629,52 +476,55 @@ export class GraphVisualization {
             return;
         }
 
-        const cpd_panel = d3.select<HTMLDivElement, unknown>(".cpd-panel");
-        
         if (!d.cpd) {
-            // Set the header html
-            cpd_panel.select<HTMLDivElement>(".panel-header").html(`
+            // Set the header and content using panel manager
+            this.panelManager.setPanelContent('cpd-panel', `
                 <div class="panel-header">CPD for ${d.id}</div>
+                <div class="panel-content">
+                    <div class="panel-placeholder">No CPD available</div>
+                </div>
             `);
-            cpd_panel.select<HTMLDivElement>(".panel-content").html(`
-                <div class="panel-placeholder">No CPD available</div>
-            `);
-            cpd_panel.classed("collapsed", false);
             return;
         }
 
         // Store the selected node for later updates
         this.selectedNode = d;
 
-        // Use the actual CPD HTML from the server
-        cpd_panel.html(`
+        // Use panel manager to update CPD panel
+        this.panelManager.setPanelContent('cpd-panel', `
             <div class="panel-header">CPD for ${d.id}</div>
             <div class="panel-content">
                 <div class="cpd-content">${d.cpd}</div>
             </div>
         `);
-        cpd_panel.classed("collapsed", false);
+
+        // Get the panel and check for table
+        const panel = this.panelManager.getPanel('cpd-panel');
+        if (!panel) return;
+
+        const table = panel.querySelector<HTMLTableElement>('.cpd-table');
+        if (!table) return;
 
         // Determine if this node has parents by checking for multiple rows
-        const table = cpd_panel.select<HTMLTableElement>(".cpd-table");
-        const hasParents = table.selectAll("tbody tr").size() > 1;
-        table.classed("no-parents", !hasParents);
+        const hasParents = table.querySelectorAll('tbody tr').length > 1;
+        table.classList.toggle('no-parents', !hasParents);
 
         // Add click handlers for state cells
-        cpd_panel.selectAll<HTMLElement, unknown>("[data-variable][data-value]")
-            .on("click", (event) => {
-                const cell = event.target as HTMLElement;
-                const variable = cell.dataset.variable;
-                const value = parseInt(cell.dataset.value || "-1");
-                const currentState = parseInt(d.conditioned_state.toString());
-                
-                if (variable === d.id) {
-                    const newState = currentState === value ? -1 : value;
+        panel.querySelectorAll<HTMLElement>('[data-variable][data-value]')
+            .forEach(cell => {
+                cell.addEventListener('click', () => {
+                    const variable = cell.dataset.variable;
+                    const value = parseInt(cell.dataset.value || "-1");
+                    const currentState = parseInt(d.conditioned_state.toString());
                     
-                    fetch(`/condition/${d.id}/${newState}`, { method: 'POST' })
-                        .then(() => this.fetchAndUpdateState())
-                        .catch(error => console.error('Condition failed:', error));
-                }
+                    if (variable === d.id) {
+                        const newState = currentState === value ? -1 : value;
+                        
+                        fetch(`/condition/${d.id}/${newState}`, { method: 'POST' })
+                            .then(() => this.fetchAndUpdateState())
+                            .catch(error => console.error('Condition failed:', error));
+                    }
+                });
             });
 
         // Apply initial highlighting if node is already conditioned
@@ -824,12 +674,15 @@ export class GraphVisualization {
     async initializeSamplingControls() {
         try {
             const { SamplingControls } = await import('/components/sampling-controls');
-            const sampling_controls_panel = document.querySelector('.sampling-controls-panel .panel-content');
-            if (sampling_controls_panel) {
-                this.samplingControls = new SamplingControls(
-                    sampling_controls_panel as HTMLElement,
-                    this.handleSamplingRequest.bind(this)
-                );
+            const panel = this.panelManager.getPanel('sampling-controls');
+            if (panel) {
+                const contentContainer = panel.querySelector('.panel-content');
+                if (contentContainer) {
+                    this.samplingControls = new SamplingControls(
+                        contentContainer as HTMLElement,
+                        this.handleSamplingRequest.bind(this)
+                    );
+                }
             }
         } catch (error) {
             console.error('Failed to initialize sampling controls:', error);

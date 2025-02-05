@@ -16,6 +16,7 @@
             "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
             "/components/plot": "/static/js/dist/components/plot.js?nocache",
             "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
+            "/components/panel-manager": "/static/js/dist/components/panel-manager.js?nocache",
             "/types": "/static/js/dist/types.js?nocache"
         }
     }
@@ -23,12 +24,12 @@
 </head>
 <body>
     <div class="container">
-        <div class="graph-container">
+        <div class="graph-container" data-panel-id="graph-container">
             <svg id="graph"></svg>
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
-        <div class="panels-container">
-            <div class="panel cpd-panel">
+        <div class="panels-container" id="panels-container">
+            <div class="panel" data-panel-id="cpd-panel">
                 <div class="panel-header">Conditional Probability Table</div>
                 <div class="panel-content">
                     <div class="panel-placeholder">
@@ -36,8 +37,8 @@
                     </div>
                 </div>
             </div>
-            <div class="horizontal-resizer"</div>
-            <div class="panel distribution-plots-panel">
+            <div class="horizontal-resizer"></div>
+            <div class="panel" data-panel-id="distribution-plots">
                 <div class="panel-header">Distribution Plots</div>
                 <div class="panel-content">
                     <div class="distribution-plots-container">
@@ -47,8 +48,8 @@
                     </div>
                 </div>
             </div>
-            <div class="horizontal-resizer"</div>
-            <div class="panel sampling-controls-panel">
+            <div class="horizontal-resizer"></div>
+            <div class="panel" data-panel-id="sampling-controls">
                 <div class="panel-header">Sampling Controls</div>
                 <div class="panel-content">
                     <!-- Sampling controls will be injected here -->
@@ -59,11 +60,47 @@
     <script type="module">
         import * as d3 from 'd3';
         import { GraphVisualization } from '/components/graph-visualization';
+        import { PanelManager } from '/components/panel-manager';
         
         async function initializeViz() {
             try {
                 console.log('Initializing visualization...');
-                window.graphViz = new GraphVisualization();
+                
+                // Initialize panel manager first
+                const panelManager = new PanelManager('panels-container', [
+                    {
+                        id: 'graph-container',
+                        minWidth: 300,
+                        flex: '1 1 70%'
+                    },
+                    {
+                        id: 'cpd-panel',
+                        title: 'Conditional Probability Table',
+                        minWidth: 300,
+                        minHeight: 100,
+                        collapsible: true,
+                        flex: '1 1 30%'
+                    },
+                    {
+                        id: 'distribution-plots',
+                        title: 'Distribution Plots',
+                        minWidth: 300,
+                        minHeight: 100,
+                        collapsible: true,
+                        flex: '1 1 30%'
+                    },
+                    {
+                        id: 'sampling-controls',
+                        title: 'Sampling Controls',
+                        minWidth: 250,
+                        minHeight: 100,
+                        collapsible: true,
+                        flex: '1 1 30%'
+                    }
+                ]);
+                
+                // Initialize graph visualization with panel manager
+                window.graphViz = new GraphVisualization(panelManager);
             } catch (error) {
                 console.error('Failed to initialize visualization:', error);
             }

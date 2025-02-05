@@ -121,4 +121,33 @@ export interface NodeDistributionResponse {
     success: boolean;
     error?: NodeDistributionError;
     result?: NodeDistributionSuccess;
-} 
+}
+
+// Panel Management Types
+export interface PanelConfig {
+    id: string;                    // Unique identifier for the panel
+    title?: string;               // Panel header title
+    defaultWidth?: number;        // Initial width in pixels
+    defaultHeight?: number;       // Initial height in pixels
+    minWidth?: number;           // Minimum width constraint
+    minHeight?: number;          // Minimum height constraint
+    collapsible?: boolean;       // Whether panel can be collapsed
+    defaultCollapsed?: boolean;  // Initial collapsed state
+    flex?: string;              // CSS flex value (e.g. "1 1 30%")
+    onResize?: (dimensions: PanelDimensions) => void;
+    onCollapse?: (collapsed: boolean) => void;
+    initialContent?: HTMLElement | string;
+}
+
+export interface PanelDimensions {
+    width: number;
+    height: number;
+}
+
+export interface ResizeEvent {
+    panelId: string;
+    dimensions: PanelDimensions;
+}
+
+export type ResizeCallback = (event: ResizeEvent) => void;
+export type CollapseCallback = (panelId: string, collapsed: boolean) => void; 

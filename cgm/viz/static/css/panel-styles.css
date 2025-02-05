@@ -88,8 +88,19 @@
     font-weight: 600;
 }
 
+/* Panel Manager Utility Classes */
+.panel-manager-resizing {
+    user-select: none;
+    cursor: col-resize;
+}
 
+.panel-manager-resizing * {
+    pointer-events: none;
+}
 
+[data-panel-id] {
+    transition: flex 0.2s ease-out;
+}
 
 /* Resizers */
 .vertical-resizer {
