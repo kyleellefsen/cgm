@@ -31,14 +31,14 @@ export class GraphVisualization {
     private simulationNodes: Map<string, SimulationNode>;
     private simulationLinks: Map<string, SimulationLink>;
     private selectedNode: SimulationNode | null;
-    private svg!: D3SVGSelection;
+    private svg: D3SVGSelection;
     private simulation: d3.Simulation<SimulationNode, SimulationLink>;
-    private linksGroup!: D3SVGGSelection;
-    private nodesGroup!: D3SVGGSelection;
-    private labelsGroup!: D3SVGGSelection;
+    private linksGroup: D3SVGGSelection;
+    private nodesGroup: D3SVGGSelection;
+    private labelsGroup: D3SVGGSelection;
     private plotManager?: PlotManager;
-    private currentGraphState!: GraphState;
-    private samplingControls!: SamplingControls | null;
+    private currentGraphState: GraphState;
+    private samplingControls: SamplingControls | null;
     private panelManager: PanelManager;
 
     constructor(panelManager: PanelManager) {
@@ -55,6 +55,12 @@ export class GraphVisualization {
         this.simulationLinks = new Map(); // Store simulation links by ID
         this.selectedNode = null;
         this.samplingControls = null;
+        
+        // Initialize graph state
+        this.currentGraphState = {
+            conditions: {},
+            lastSamplingResult: null
+        };
         
         // Set up SVG - clear existing content first
         d3.select(".graph-container").selectAll("svg").remove();
@@ -100,12 +106,6 @@ export class GraphVisualization {
         // Initialize sampling controls
         this.initializeSamplingControls();
         
-        // Track current graph state
-        this.currentGraphState = {
-            conditions: {},
-            lastSamplingResult: null
-        };
-
         // Set up panel resize handlers
         this.setupPanelHandlers();
     }
@@ -373,16 +373,8 @@ export class GraphVisualization {
             .text(d => d.id);
             
         // Update all nodes (both new and existing)
-        const allNodes = nodes.merge(nodeEnter as any);
-        
-        // Update node elements
-        allNodes.each(function(d) {
-            const node = d3.select(this) as d3.Selection<SVGGElement, SimulationNode, null, undefined>;
-            const isConditioned = d.conditioned_state >= 0;
-            
-            // Toggle 'conditioned' class
-            node.classed("conditioned", isConditioned);
-        });
+        const allNodes = nodes.merge(nodeEnter)
+            .classed("conditioned", d => d.conditioned_state >= 0);
         
         // Update links
         const links = this.linksGroup
@@ -400,7 +392,7 @@ export class GraphVisualization {
             .style("stroke-width", "1.5px");
             
         // Update all links
-        links.merge(linkEnter as any)
+        links.merge(linkEnter)
             .attr("marker-end", "url(#arrowhead)")
             .style("stroke", "#999")
             .style("stroke-width", "1.5px");
@@ -416,7 +408,7 @@ export class GraphVisualization {
             .append("text")
             .attr("class", "node-states");
             
-        states.merge(stateEnter as any)
+        states.merge(stateEnter)
             .text(d => {
                 const totalStates = d.states;
                 const isConditioned = d.conditioned_state >= 0;
