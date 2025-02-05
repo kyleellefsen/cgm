@@ -41,6 +41,10 @@ export class SamplingControls {
                     <span class="toggle-icon">▼</span>
                 </div>
                 <div class="sampling-controls-content" id="sampling-controls-content">
+                    <button class="generate-button" id="generate-button">
+                        Generate Samples
+                    </button>
+
                     <div class="control-group">
                         <label class="control-label">Sampling Method</label>
                         <select class="sampling-method-select" id="sampling-method">
@@ -105,10 +109,6 @@ export class SamplingControls {
                             </div>
                         </div>
                     </div>
-
-                    <button class="generate-button" id="generate-button">
-                        Generate Samples
-                    </button>
 
                     <div class="status-area">
                         <div class="status-text" id="status-text">Status: Idle</div>
