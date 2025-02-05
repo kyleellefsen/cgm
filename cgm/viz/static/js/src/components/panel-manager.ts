@@ -1,17 +1,7 @@
-import { 
-    PanelConfig, 
-    PanelDimensions, 
-    ResizeEvent, 
-    ResizeCallback, 
-    CollapseCallback 
-} from '../types';
+import { PanelConfig } from '../types';
 
 export class PanelManager {
-    private panels: Map<string, PanelConfig>;
     private container: HTMLElement;
-    private resizeObserver: ResizeObserver;
-    private resizeCallbacks: Set<ResizeCallback>;
-    private collapseCallbacks: Set<CollapseCallback>;
 
     constructor(containerId: string, panels: PanelConfig[]) {
         const container = document.getElementById(containerId);
@@ -19,255 +9,134 @@ export class PanelManager {
             throw new Error(`Container with id '${containerId}' not found`);
         }
         this.container = container;
-        this.panels = new Map(panels.map(p => [p.id, p]));
-        this.resizeCallbacks = new Set();
-        this.collapseCallbacks = new Set();
-        this.resizeObserver = new ResizeObserver(this.handleResize.bind(this));
         
-        this.initPanels();
-        this.setupResizeObserver();
-        this.setupResizers();
-    }
-
-    private handleResize(entries: ResizeObserverEntry[]): void {
-        entries.forEach(entry => {
-            const panel = entry.target as HTMLElement;
-            const panelId = panel.dataset.panelId;
-            if (!panelId) return;
-
-            const event: ResizeEvent = {
-                panelId,
-                dimensions: {
-                    width: entry.contentRect.width,
-                    height: entry.contentRect.height
-                }
-            };
-
-            // Call panel-specific resize handler if it exists
-            const config = this.panels.get(panelId);
-            config?.onResize?.(event.dimensions);
-
-            // Call global resize handlers
-            this.resizeCallbacks.forEach(callback => callback(event));
-        });
-    }
-
-    private initPanels(): void {
-        this.panels.forEach((config, id) => {
-            const panel = document.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
-            if (!panel) return;
-
-            // Apply initial dimensions and constraints using CSS variables
-            if (config.defaultWidth) {
-                panel.style.setProperty('--panel-default-width', `${config.defaultWidth}px`);
-            }
-            if (config.flex) {
-                panel.style.setProperty('--panel-flex', config.flex);
-            }
-            if (config.minWidth) {
-                panel.style.setProperty('--panel-min-width', `${config.minWidth}px`);
-            }
-            if (config.minHeight) {
-                panel.style.setProperty('--panel-min-height', `${config.minHeight}px`);
-            }
-            
-            // Setup collapsible behavior if enabled
-            if (config.collapsible) {
-                const header = panel.querySelector('.panel-header');
-                if (header) {
-                    header.addEventListener('click', () => this.togglePanel(id));
-                }
-                if (config.defaultCollapsed) {
-                    this.togglePanel(id);
-                }
-            }
-
-            // Set initial content if provided
-            if (config.initialContent) {
-                this.setPanelContent(id, config.initialContent);
-            }
-        });
-    }
-
-    private setupResizers(): void {
-        // Single event listener for all resizers using event delegation
-        this.container.addEventListener('mousedown', e => {
-            const target = e.target as HTMLElement;
-            if (target.id === 'vertical-resizer') {
-                this.handleVerticalResize(e);
-            }
-            else if (target.classList.contains('horizontal-resizer')) {
-                this.handleHorizontalResize(e, target);
-            }
-        });
-    }
-
-    private handleVerticalResize(e: MouseEvent): void {
-        let isResizing = true;
-        const startX = e.pageX;
-        const startWidths = new Map<string, number>();
+        // Initialize panels
+        panels.forEach(config => this.initPanel(config));
         
-        // Store initial panel widths
-        this.panels.forEach((config, id) => {
-            const panel = this.getPanel(id);
-            if (panel) startWidths.set(id, panel.offsetWidth);
-        });
-
-        const mouseMove = (e: MouseEvent) => {
-            if (!isResizing) return;
-            const dx = e.pageX - startX;
-            this.updatePanelWidths(dx, startWidths);
-        };
-
-        const mouseUp = () => {
-            isResizing = false;
-            document.body.classList.remove('panel-manager-resizing');
-            document.removeEventListener('mousemove', mouseMove);
-            document.removeEventListener('mouseup', mouseUp);
-        };
-
-        document.body.classList.add('panel-manager-resizing');
-        document.addEventListener('mousemove', mouseMove);
-        document.addEventListener('mouseup', mouseUp);
+        // Setup resize handling
+        this.setupResizeHandling();
     }
 
-    private handleHorizontalResize(e: MouseEvent, resizer: HTMLElement): void {
-        let isResizing = true;
-        const startY = e.pageY;
-        const upperPanel = resizer.previousElementSibling as HTMLElement;
-        const lowerPanel = resizer.nextElementSibling as HTMLElement;
-        
-        if (!upperPanel || !lowerPanel) return;
-        
-        const startHeights = {
-            upper: upperPanel.offsetHeight,
-            lower: lowerPanel.offsetHeight
-        };
-
-        const mouseMove = (e: MouseEvent) => {
-            if (!isResizing) return;
-            const dy = e.pageY - startY;
-            this.updatePanelHeights(upperPanel, lowerPanel, dy, startHeights);
-        };
-
-        const mouseUp = () => {
-            isResizing = false;
-            document.body.classList.remove('panel-manager-resizing');
-            document.removeEventListener('mousemove', mouseMove);
-            document.removeEventListener('mouseup', mouseUp);
-        };
-
-        document.body.classList.add('panel-manager-resizing');
-        document.addEventListener('mousemove', mouseMove);
-        document.addEventListener('mouseup', mouseUp);
-    }
-
-    private updatePanelWidths(dx: number, startWidths: Map<string, number>): void {
-        this.panels.forEach((config, id) => {
-            const panel = this.getPanel(id);
-            const startWidth = startWidths.get(id);
-            if (panel && startWidth !== undefined) {
-                const newWidth = startWidth + dx * (config.resizeWeight || 0);
-                const minWidth = parseFloat(getComputedStyle(panel).getPropertyValue('--panel-min-width'));
-                if (newWidth >= minWidth) {
-                    panel.classList.add('resizing');
-                    panel.style.setProperty('--panel-width', `${newWidth}px`);
-                }
-            }
-        });
-    }
-
-    private updatePanelHeights(
-        upperPanel: HTMLElement, 
-        lowerPanel: HTMLElement, 
-        dy: number, 
-        startHeights: { upper: number; lower: number }
-    ): void {
-        if (!upperPanel || !lowerPanel || 
-            upperPanel.classList.contains('collapsed') || 
-            lowerPanel.classList.contains('collapsed')) {
-            return;
-        }
-
-        const newUpperHeight = startHeights.upper + dy;
-        const newLowerHeight = startHeights.lower - dy;
-        const minHeight = parseFloat(getComputedStyle(upperPanel).getPropertyValue('--panel-min-height'));
-
-        if (newUpperHeight >= minHeight && newLowerHeight >= minHeight) {
-            upperPanel.classList.add('resizing');
-            lowerPanel.classList.add('resizing');
-            upperPanel.style.setProperty('--panel-height', `${newUpperHeight}px`);
-            lowerPanel.style.setProperty('--panel-height', `${newLowerHeight}px`);
-        }
-    }
-
-    public onResize(callback: ResizeCallback): void {
-        this.resizeCallbacks.add(callback);
-    }
-
-    public onCollapse(callback: CollapseCallback): void {
-        this.collapseCallbacks.add(callback);
-    }
-
-    public togglePanel(panelId: string): void {
-        const panel = this.getPanel(panelId);
+    private initPanel(config: PanelConfig): void {
+        const panel = document.querySelector(`[data-panel-id="${config.id}"]`) as HTMLElement;
         if (!panel) return;
 
-        const isCollapsed = panel.classList.toggle('collapsed');
-        
-        // Call panel-specific collapse handler if it exists
-        const config = this.panels.get(panelId);
-        config?.onCollapse?.(isCollapsed);
+        // Set minimum dimensions as CSS variables
+        if (config.minWidth) {
+            panel.style.setProperty('--min-width', `${config.minWidth}px`);
+        }
+        if (config.minHeight) {
+            panel.style.setProperty('--min-height', `${config.minHeight}px`);
+        }
 
-        // Call global collapse handlers
-        this.collapseCallbacks.forEach(callback => callback(panelId, isCollapsed));
+        // Setup collapsible behavior
+        if (config.collapsible) {
+            const header = panel.querySelector('.panel-header');
+            if (header) {
+                header.addEventListener('click', () => {
+                    const isCollapsed = panel.classList.toggle('collapsed');
+                    config.onCollapse?.(isCollapsed);
+                });
+            }
+        }
+
+        // Set initial content
+        if (config.initialContent) {
+            const contentContainer = panel.querySelector('.panel-content');
+            if (contentContainer) {
+                if (config.initialContent instanceof HTMLElement) {
+                    contentContainer.appendChild(config.initialContent);
+                } else {
+                    contentContainer.innerHTML = config.initialContent;
+                }
+            }
+        }
+
+        // Setup resize observer
+        const resizeObserver = new ResizeObserver(entries => {
+            const entry = entries[0];
+            if (entry && config.onResize) {
+                config.onResize(entry.contentRect.width, entry.contentRect.height);
+            }
+        });
+        resizeObserver.observe(panel);
     }
 
-    public getPanel(id: string): HTMLElement | null {
-        return document.querySelector(`[data-panel-id="${id}"]`);
+    private setupResizeHandling(): void {
+        let activeResizer: HTMLElement | null = null;
+        let startX: number = 0;
+        let startY: number = 0;
+
+        this.container.addEventListener('mousedown', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.classList.contains('resizer')) {
+                activeResizer = target;
+                startX = e.pageX;
+                startY = e.pageY;
+                document.body.classList.add('resizing');
+            }
+        });
+
+        document.addEventListener('mousemove', (e: MouseEvent) => {
+            if (!activeResizer) return;
+
+            const isVertical = activeResizer.classList.contains('vertical');
+            const dx = e.pageX - startX;
+            const dy = e.pageY - startY;
+
+            if (isVertical) {
+                const prev = activeResizer.previousElementSibling as HTMLElement;
+                const next = activeResizer.nextElementSibling as HTMLElement;
+                if (prev && next) {
+                    const prevWidth = prev.offsetWidth + dx;
+                    const nextWidth = next.offsetWidth - dx;
+                    const prevMin = parseFloat(getComputedStyle(prev).getPropertyValue('--min-width') || '0');
+                    const nextMin = parseFloat(getComputedStyle(next).getPropertyValue('--min-width') || '0');
+
+                    if (prevWidth >= prevMin && nextWidth >= nextMin) {
+                        prev.style.width = `${prevWidth}px`;
+                        next.style.width = `${nextWidth}px`;
+                        startX = e.pageX;
+                    }
+                }
+            } else {
+                const prev = activeResizer.previousElementSibling as HTMLElement;
+                const next = activeResizer.nextElementSibling as HTMLElement;
+                if (prev && next) {
+                    const prevHeight = prev.offsetHeight + dy;
+                    const nextHeight = next.offsetHeight - dy;
+                    const prevMin = parseFloat(getComputedStyle(prev).getPropertyValue('--min-height') || '0');
+                    const nextMin = parseFloat(getComputedStyle(next).getPropertyValue('--min-height') || '0');
+
+                    if (prevHeight >= prevMin && nextHeight >= nextMin) {
+                        prev.style.height = `${prevHeight}px`;
+                        next.style.height = `${nextHeight}px`;
+                        startY = e.pageY;
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (activeResizer) {
+                activeResizer = null;
+                document.body.classList.remove('resizing');
+            }
+        });
     }
 
     public setPanelContent(id: string, content: HTMLElement | string): void {
-        const panel = this.getPanel(id);
+        const panel = document.querySelector(`[data-panel-id="${id}"]`);
         if (!panel) return;
         
         const contentContainer = panel.querySelector('.panel-content');
         if (contentContainer) {
-            contentContainer.innerHTML = '';  // Clear existing content
             if (content instanceof HTMLElement) {
+                contentContainer.innerHTML = '';
                 contentContainer.appendChild(content);
             } else {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = content.trim();
-                
-                // Only append the content div, not the header
-                const contentDiv = tempDiv.querySelector('.panel-content');
-                if (contentDiv) {
-                    contentContainer.innerHTML = contentDiv.innerHTML;
-                } else {
-                    contentContainer.innerHTML = content;
-                }
+                contentContainer.innerHTML = content;
             }
         }
-    }
-
-    public getPanelDimensions(panelId: string): PanelDimensions | null {
-        const panel = this.getPanel(panelId);
-        if (!panel) return null;
-
-        return {
-            width: panel.offsetWidth,
-            height: panel.offsetHeight
-        };
-    }
-
-    private setupResizeObserver(): void {
-        // Observe all panels
-        this.panels.forEach((_, id) => {
-            const panel = this.getPanel(id);
-            if (panel) {
-                this.resizeObserver.observe(panel);
-            }
-        });
     }
 } 

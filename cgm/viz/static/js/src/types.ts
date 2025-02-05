@@ -127,15 +127,10 @@ export interface NodeDistributionResponse {
 export interface PanelConfig {
     id: string;                    // Unique identifier for the panel
     title?: string;               // Panel header title
-    defaultWidth?: number;        // Initial width in pixels
-    defaultHeight?: number;       // Initial height in pixels
     minWidth?: number;           // Minimum width constraint
     minHeight?: number;          // Minimum height constraint
     collapsible?: boolean;       // Whether panel can be collapsed
-    defaultCollapsed?: boolean;  // Initial collapsed state
-    flex?: string;              // CSS flex value (e.g. "1 1 30%")
-    resizeWeight?: number;      // Weight factor for resizing (0 = fixed, 1 = full resize)
-    onResize?: (dimensions: PanelDimensions) => void;
+    onResize?: (width: number, height: number) => void;
     onCollapse?: (collapsed: boolean) => void;
     initialContent?: HTMLElement | string;
 }
