@@ -57,18 +57,18 @@ export class PanelManager {
             const panel = document.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
             if (!panel) return;
 
-            // Apply initial dimensions and constraints
+            // Apply initial dimensions and constraints using CSS variables
             if (config.defaultWidth) {
-                panel.style.width = `${config.defaultWidth}px`;
+                panel.style.setProperty('--panel-default-width', `${config.defaultWidth}px`);
             }
             if (config.flex) {
-                panel.style.flex = config.flex;
+                panel.style.setProperty('--panel-flex', config.flex);
             }
             if (config.minWidth) {
-                panel.style.minWidth = `${config.minWidth}px`;
+                panel.style.setProperty('--panel-min-width', `${config.minWidth}px`);
             }
             if (config.minHeight) {
-                panel.style.minHeight = `${config.minHeight}px`;
+                panel.style.setProperty('--panel-min-height', `${config.minHeight}px`);
             }
             
             // Setup collapsible behavior if enabled
@@ -168,9 +168,10 @@ export class PanelManager {
             const startWidth = startWidths.get(id);
             if (panel && startWidth !== undefined) {
                 const newWidth = startWidth + dx * (config.resizeWeight || 0);
-                if (newWidth >= (config.minWidth || 50)) {
-                    panel.style.flex = 'none';
-                    panel.style.width = `${newWidth}px`;
+                const minWidth = parseFloat(getComputedStyle(panel).getPropertyValue('--panel-min-width'));
+                if (newWidth >= minWidth) {
+                    panel.classList.add('resizing');
+                    panel.style.setProperty('--panel-width', `${newWidth}px`);
                 }
             }
         });
@@ -182,23 +183,21 @@ export class PanelManager {
         dy: number, 
         startHeights: { upper: number; lower: number }
     ): void {
-        const upperPanelId = upperPanel.dataset.panelId;
-        const lowerPanelId = lowerPanel.dataset.panelId;
-        
-        if (!upperPanelId || !lowerPanelId) return;
-
-        const upperConfig = this.panels.get(upperPanelId);
-        const lowerConfig = this.panels.get(lowerPanelId);
+        if (!upperPanel || !lowerPanel || 
+            upperPanel.classList.contains('collapsed') || 
+            lowerPanel.classList.contains('collapsed')) {
+            return;
+        }
 
         const newUpperHeight = startHeights.upper + dy;
         const newLowerHeight = startHeights.lower - dy;
+        const minHeight = parseFloat(getComputedStyle(upperPanel).getPropertyValue('--panel-min-height'));
 
-        if (newUpperHeight >= (upperConfig?.minHeight || 50) && 
-            newLowerHeight >= (lowerConfig?.minHeight || 50)) {
-            upperPanel.style.flex = 'none';
-            lowerPanel.style.flex = 'none';
-            upperPanel.style.height = `${newUpperHeight}px`;
-            lowerPanel.style.height = `${newLowerHeight}px`;
+        if (newUpperHeight >= minHeight && newLowerHeight >= minHeight) {
+            upperPanel.classList.add('resizing');
+            lowerPanel.classList.add('resizing');
+            upperPanel.style.setProperty('--panel-height', `${newUpperHeight}px`);
+            lowerPanel.style.setProperty('--panel-height', `${newLowerHeight}px`);
         }
     }
 
