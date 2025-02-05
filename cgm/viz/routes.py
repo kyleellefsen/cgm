@@ -1,17 +1,22 @@
 """FastAPI routes for the visualization module."""
-from typing import Dict, Any
-from fastapi import FastAPI, HTTPException
+from typing import Dict
+import fastapi
+from fastapi import HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from .state import VizState
 import pathlib
 import time
 
-from .state import vizstate_instance
 from . import models as m
 from ..inference.approximate import sampling
 from ..inference.approximate.sampling import ForwardSamplingCertificate
 
-def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
+async def get_viz_state(request: fastapi.Request) -> VizState:
+    """Dependency to get the visualization state."""
+    return request.app.state.viz_state
+
+def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
     """Setup all routes for the application."""
     
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -22,13 +27,13 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
         return FileResponse(static_dir / "viz-layout.html")
 
     @app.get("/state")
-    async def get_state() -> Dict:
+    async def get_state(viz_state: VizState = Depends(get_viz_state)) -> Dict:
         """Return the current graph state as JSON."""
-        current_graph = vizstate_instance.graph
+        current_graph = viz_state.current_graph
         if not current_graph:
             return {"nodes": [], "links": []}
 
-        current_state = vizstate_instance.state
+        current_state = viz_state.current_graph_state
         nodes = [{
             "id": node.name,
             "states": node.num_states,
@@ -46,19 +51,21 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
         return {"nodes": nodes, "links": links}
 
     @app.post("/condition/{node_id}/{state_value}")
-    async def condition_node(node_id: str, state_value: int):
+    async def condition_node(node_id: str, state_value: int,
+                             viz_state: VizState = Depends(get_viz_state)):
         """Update node's conditioned state"""
-        if not vizstate_instance.graph:
+        if not viz_state.current_graph:
             return {"status": "no graph loaded"}
         
-        if vizstate_instance.condition(node_id, None if state_value == -1 else state_value):
+        if viz_state.condition(node_id, None if state_value == -1 else state_value):
             return {"status": "updated"}
         return {"status": "failed"}
 
     @app.post("/api/sample", response_model=m.SamplingResponse)
-    async def generate_samples(request: m.SamplingRequest) -> m.SamplingResponse:
+    async def generate_samples(request: m.SamplingRequest,
+                               viz_state: VizState = Depends(get_viz_state)) -> m.SamplingResponse:
         """Generate samples from the current graph state."""
-        current_graph = vizstate_instance.graph
+        current_graph = viz_state.current_graph
         if not current_graph:
             return m.SamplingResponse(
                 success=False,
@@ -70,10 +77,10 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
             
         try:
             # Set random seed and get the seed used
-            seed_used = vizstate_instance.set_seed(request.options.random_seed)
+            seed_used = viz_state.set_seed(request.options.random_seed)
             
             # Start with existing graph state if it exists, otherwise create new state with request conditions
-            current_state = vizstate_instance.state
+            current_state = viz_state.current_graph_state
             if current_state is None:
                 return m.SamplingResponse(
                     success=False,
@@ -105,7 +112,7 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
             try:
                 sample_array, _ = sampling.get_n_samples(
                     current_graph,
-                    vizstate_instance._rng,
+                    viz_state._rng,
                     num_samples=request.num_samples,
                     state=current_state,
                     certificate=cert,
@@ -136,9 +143,9 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
                 'timestamp': time.time(),
                 'num_samples': request.num_samples,
             }
-            vizstate_instance.store_samples(sample_array, metadata)
+            viz_state.store_samples(sample_array, metadata)
 
-            n_samples: int = vizstate_instance.n_samples
+            n_samples: int = viz_state.n_samples
             
             return m.SamplingResponse(
                 success=True,
@@ -163,9 +170,10 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
             )
 
     @app.post("/api/node_distribution", response_model=m.NodeDistributionResponse)
-    async def get_node_distribution(request: m.NodeDistributionRequest) -> m.NodeDistributionResponse:
+    async def get_node_distribution(request: m.NodeDistributionRequest,
+                                    viz_state: VizState = Depends(get_viz_state)) -> m.NodeDistributionResponse:
         """Get the distribution for a specific node from cached samples."""
-        if not vizstate_instance.graph:
+        if not viz_state.current_graph:
             return m.NodeDistributionResponse(
                 success=False,
                 error=m.NodeDistributionError(
@@ -174,7 +182,7 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
                 )
             )
             
-        if vizstate_instance._current_samples is None:
+        if viz_state._current_samples is None:
             return m.NodeDistributionResponse(
                 success=False,
                 error=m.NodeDistributionError(
@@ -183,7 +191,7 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
                 )
             )
         
-        samples = vizstate_instance.get_node_samples(request.node_name)
+        samples = viz_state.get_node_samples(request.node_name)
         if samples is None:
             return m.NodeDistributionResponse(
                 success=False,
@@ -193,7 +201,7 @@ def setup_routes(app: FastAPI, static_dir: pathlib.Path) -> None:
                 )
             )
 
-        node_distribution = vizstate_instance.get_node_distribution(request.node_name,
+        node_distribution = viz_state.get_node_distribution(request.node_name,
         request.codomain)
         if node_distribution is None:
             return m.NodeDistributionResponse(
