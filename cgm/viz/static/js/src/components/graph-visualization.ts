@@ -476,26 +476,20 @@ export class GraphVisualization {
             return;
         }
 
+        // Store the selected node for later updates
+        this.selectedNode = d;
+
+        // Update CPD panel
         if (!d.cpd) {
-            // Set the header and content using panel manager
             this.panelManager.setPanelContent('cpd-panel', `
-                <div class="panel-header">CPD for ${d.id}</div>
-                <div class="panel-content">
-                    <div class="panel-placeholder">No CPD available</div>
-                </div>
+                <div class="panel-placeholder">No CPD available for ${d.id}</div>
             `);
             return;
         }
 
-        // Store the selected node for later updates
-        this.selectedNode = d;
-
-        // Use panel manager to update CPD panel
+        // Set the CPD content
         this.panelManager.setPanelContent('cpd-panel', `
-            <div class="panel-header">CPD for ${d.id}</div>
-            <div class="panel-content">
-                <div class="cpd-content">${d.cpd}</div>
-            </div>
+            <div class="cpd-content">${d.cpd}</div>
         `);
 
         // Get the panel and check for table
@@ -690,29 +684,34 @@ export class GraphVisualization {
     }
 
     updateTableHighlighting(node: SimulationNode) {
-        const table = d3.select<HTMLTableElement, unknown>(".cpd-panel .cpd-table");
-        if (!table.node()) return;  // Exit if no table is displayed
+        const panel = this.panelManager.getPanel('cpd-panel');
+        if (!panel) return;
+
+        const table = panel.querySelector<HTMLTableElement>('.cpd-table');
+        if (!table) return;
 
         // Clear any existing highlighting
-        table.selectAll<HTMLTableCellElement, unknown>("td, th").classed("state-active", false);
+        table.querySelectorAll('td, th').forEach(cell => {
+            cell.classList.remove('state-active');
+        });
 
         const currentState = parseInt(node.conditioned_state.toString());
         if (currentState === -1) return;  // No highlighting needed
 
-        const hasParents = !table.classed("no-parents");
+        const hasParents = !table.classList.contains('no-parents');
         
         if (hasParents) {
             // For nodes with parents, highlight cells and header showing the current state
-            table.selectAll<HTMLTableCellElement, unknown>(`td[data-variable="${node.id}"][data-value="${currentState}"], 
-                           th[data-variable="${node.id}"][data-value="${currentState}"]`)
-                .classed("state-active", true);
+            table.querySelectorAll(`td[data-variable="${node.id}"][data-value="${currentState}"], 
+                                  th[data-variable="${node.id}"][data-value="${currentState}"]`)
+                .forEach(cell => cell.classList.add('state-active'));
         } else {
             // For nodes without parents, highlight the column corresponding to the state
             // Add 1 to account for the label column
             const stateColumn = currentState + 1;
-            table.selectAll<HTMLTableCellElement, unknown>(`td:nth-child(${stateColumn}), 
-                           th:nth-child(${stateColumn})`)
-                .classed("state-active", true);
+            table.querySelectorAll(`td:nth-child(${stateColumn}), 
+                                  th:nth-child(${stateColumn})`)
+                .forEach(cell => cell.classList.add('state-active'));
         }
     }
 

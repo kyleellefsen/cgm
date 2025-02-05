@@ -22,11 +22,35 @@ export class PanelManager {
         this.panels = new Map(panels.map(p => [p.id, p]));
         this.resizeCallbacks = new Set();
         this.collapseCallbacks = new Set();
+        this.resizeObserver = new ResizeObserver(this.handleResize.bind(this));
         
         this.initPanels();
         this.setupResizeObserver();
         this.setupVerticalResizer();
         this.setupHorizontalResizers();
+    }
+
+    private handleResize(entries: ResizeObserverEntry[]): void {
+        entries.forEach(entry => {
+            const panel = entry.target as HTMLElement;
+            const panelId = panel.dataset.panelId;
+            if (!panelId) return;
+
+            const event: ResizeEvent = {
+                panelId,
+                dimensions: {
+                    width: entry.contentRect.width,
+                    height: entry.contentRect.height
+                }
+            };
+
+            // Call panel-specific resize handler if it exists
+            const config = this.panels.get(panelId);
+            config?.onResize?.(event.dimensions);
+
+            // Call global resize handlers
+            this.resizeCallbacks.forEach(callback => callback(event));
+        });
     }
 
     private initPanels(): void {
@@ -71,12 +95,13 @@ export class PanelManager {
         if (!resizer) return;
 
         let isResizing = false;
-        let startX: number;
-        let startWidths: Map<string, number> = new Map();
+        let startX = 0;
+        let startWidths = new Map<string, number>();
 
-        const startResize = (e: MouseEvent) => {
+        const startResize = (e: Event) => {
+            const mouseEvent = e as MouseEvent;
             isResizing = true;
-            startX = e.pageX;
+            startX = mouseEvent.pageX;
             document.body.classList.add('panel-manager-resizing');
             
             // Store starting widths of affected panels
@@ -91,17 +116,18 @@ export class PanelManager {
             e.stopPropagation();
         };
 
-        const resize = (e: MouseEvent) => {
+        const resize = (e: Event) => {
             if (!isResizing) return;
             
-            const dx = e.pageX - startX;
+            const mouseEvent = e as MouseEvent;
+            const dx = mouseEvent.pageX - startX;
             this.updatePanelWidths(dx, startWidths);
 
             e.preventDefault();
             e.stopPropagation();
         };
 
-        const stopResize = (e: MouseEvent) => {
+        const stopResize = (e: Event) => {
             if (!isResizing) return;
             isResizing = false;
             document.body.classList.remove('panel-manager-resizing');
@@ -109,27 +135,28 @@ export class PanelManager {
             e.stopPropagation();
         };
 
-        resizer.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
+        resizer.addEventListener('mousedown', startResize as EventListener);
+        document.addEventListener('mousemove', resize as EventListener);
+        document.addEventListener('mouseup', stopResize as EventListener);
     }
 
     private setupHorizontalResizers(): void {
         const resizers = document.getElementsByClassName('horizontal-resizer');
         Array.from(resizers).forEach(resizer => {
             let isResizing = false;
-            let startY: number;
-            let upperPanel: HTMLElement;
-            let lowerPanel: HTMLElement;
-            let startHeights: { upper: number; lower: number };
+            let startY = 0;
+            let upperPanel: HTMLElement | null = null;
+            let lowerPanel: HTMLElement | null = null;
+            let startHeights = { upper: 0, lower: 0 };
 
-            const startResize = (e: MouseEvent) => {
+            const startResize = (e: Event) => {
+                const mouseEvent = e as MouseEvent;
                 upperPanel = resizer.previousElementSibling as HTMLElement;
                 lowerPanel = resizer.nextElementSibling as HTMLElement;
                 if (!upperPanel || !lowerPanel) return;
 
                 isResizing = true;
-                startY = e.pageY;
+                startY = mouseEvent.pageY;
                 startHeights = {
                     upper: upperPanel.offsetHeight,
                     lower: lowerPanel.offsetHeight
@@ -139,16 +166,17 @@ export class PanelManager {
                 e.stopPropagation();
             };
 
-            const resize = (e: MouseEvent) => {
-                if (!isResizing) return;
+            const resize = (e: Event) => {
+                if (!isResizing || !upperPanel || !lowerPanel) return;
                 
-                const dy = e.pageY - startY;
+                const mouseEvent = e as MouseEvent;
+                const dy = mouseEvent.pageY - startY;
                 this.updatePanelHeights(upperPanel, lowerPanel, dy, startHeights);
                 e.preventDefault();
                 e.stopPropagation();
             };
 
-            const stopResize = (e: MouseEvent) => {
+            const stopResize = (e: Event) => {
                 if (!isResizing) return;
                 isResizing = false;
                 document.body.classList.remove('panel-manager-resizing');
@@ -156,36 +184,13 @@ export class PanelManager {
                 e.stopPropagation();
             };
 
-            resizer.addEventListener('mousedown', startResize);
-            document.addEventListener('mousemove', resize);
-            document.addEventListener('mouseup', stopResize);
+            resizer.addEventListener('mousedown', startResize as EventListener);
+            document.addEventListener('mousemove', resize as EventListener);
+            document.addEventListener('mouseup', stopResize as EventListener);
         });
     }
 
     private setupResizeObserver(): void {
-        this.resizeObserver = new ResizeObserver(entries => {
-            entries.forEach(entry => {
-                const panel = entry.target as HTMLElement;
-                const panelId = panel.dataset.panelId;
-                if (!panelId) return;
-
-                const event: ResizeEvent = {
-                    panelId,
-                    dimensions: {
-                        width: entry.contentRect.width,
-                        height: entry.contentRect.height
-                    }
-                };
-
-                // Call panel-specific resize handler if it exists
-                const config = this.panels.get(panelId);
-                config?.onResize?.(event.dimensions);
-
-                // Call global resize handlers
-                this.resizeCallbacks.forEach(callback => callback(event));
-            });
-        });
-
         // Observe all panels
         this.panels.forEach((_, id) => {
             const panel = document.querySelector(`[data-panel-id="${id}"]`);
@@ -227,11 +232,20 @@ export class PanelManager {
         
         const contentContainer = panel.querySelector('.panel-content');
         if (contentContainer) {
+            contentContainer.innerHTML = '';  // Clear existing content
             if (content instanceof HTMLElement) {
-                contentContainer.innerHTML = '';
                 contentContainer.appendChild(content);
             } else {
-                contentContainer.innerHTML = content;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content.trim();
+                
+                // Only append the content div, not the header
+                const contentDiv = tempDiv.querySelector('.panel-content');
+                if (contentDiv) {
+                    contentContainer.innerHTML = contentDiv.innerHTML;
+                } else {
+                    contentContainer.innerHTML = content;
+                }
             }
         }
     }
