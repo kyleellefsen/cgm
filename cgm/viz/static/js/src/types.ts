@@ -134,6 +134,7 @@ export interface PanelConfig {
     collapsible?: boolean;       // Whether panel can be collapsed
     defaultCollapsed?: boolean;  // Initial collapsed state
     flex?: string;              // CSS flex value (e.g. "1 1 30%")
+    resizeWeight?: number;      // Weight factor for resizing (0 = fixed, 1 = full resize)
     onResize?: (dimensions: PanelDimensions) => void;
     onCollapse?: (collapsed: boolean) => void;
     initialContent?: HTMLElement | string;

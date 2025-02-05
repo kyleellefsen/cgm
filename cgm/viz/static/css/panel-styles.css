@@ -90,8 +90,8 @@
 
 /* Panel Manager Utility Classes */
 .panel-manager-resizing {
-    user-select: none;
     cursor: col-resize;
+    user-select: none;
 }
 
 .panel-manager-resizing * {
@@ -103,7 +103,7 @@
 }
 
 /* Resizers */
-.vertical-resizer {
+#vertical-resizer {
     width: 8px;
     background-color: var(--resizer-color);
     cursor: col-resize;
@@ -126,20 +126,18 @@
     z-index: 10;
 }
 
-.vertical-resizer:hover, 
-.vertical-resizer.resizing {
+#vertical-resizer:hover, 
+#vertical-resizer.resizing {
     background-color: var(--resizer-hover-color);
-    width: 8px;
 }
 
 .horizontal-resizer:hover,
 .horizontal-resizer.resizing {
     background-color: var(--resizer-hover-color);
-    height: 8px;
 }
 
 /* Add visual handles to resizers */
-.vertical-resizer::after {
+#vertical-resizer::after {
     content: "⋮";
     position: absolute;
     top: 50%;
