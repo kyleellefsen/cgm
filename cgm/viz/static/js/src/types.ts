@@ -42,7 +42,7 @@ export interface GraphData {
 
 export interface GraphState {
     conditions: Record<string, number>;
-    lastSamplingResult: SamplingResult | null;
+    lastSamplingResult: any | null;
 }
 
 export interface PlotData {
@@ -121,29 +121,4 @@ export interface NodeDistributionResponse {
     success: boolean;
     error?: NodeDistributionError;
     result?: NodeDistributionSuccess;
-}
-
-// Panel Management Types
-export interface PanelConfig {
-    id: string;                    // Unique identifier for the panel
-    title?: string;               // Panel header title
-    minWidth?: number;           // Minimum width constraint
-    minHeight?: number;          // Minimum height constraint
-    collapsible?: boolean;       // Whether panel can be collapsed
-    onResize?: (width: number, height: number) => void;
-    onCollapse?: (collapsed: boolean) => void;
-    initialContent?: HTMLElement | string;
-}
-
-export interface PanelDimensions {
-    width: number;
-    height: number;
-}
-
-export interface ResizeEvent {
-    panelId: string;
-    dimensions: PanelDimensions;
-}
-
-export type ResizeCallback = (event: ResizeEvent) => void;
-export type CollapseCallback = (panelId: string, collapsed: boolean) => void; 
+} 

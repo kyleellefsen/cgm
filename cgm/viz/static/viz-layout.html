@@ -2,116 +2,72 @@
 <html>
 <head>
     <title>CGM Graph Visualization</title>
-    <link rel="stylesheet" href="/static/css/base.css?nocache">
-    <link rel="stylesheet" href="/static/css/panel-styles.css?nocache">
-    <link rel="stylesheet" href="/static/css/graph-styles.css?nocache">
-    <link rel="stylesheet" href="/static/css/cpd-table-styles.css?nocache">
-    <link rel="stylesheet" href="/static/css/plot-styles.css?nocache">
-    <link rel="stylesheet" href="/static/css/sampling-controls.css?nocache">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/panel-styles.css">
+    <link rel="stylesheet" href="/static/css/graph-styles.css">
+    <link rel="stylesheet" href="/static/css/cpd-table-styles.css">
+    <link rel="stylesheet" href="/static/css/plot-styles.css">
+    <link rel="stylesheet" href="/static/css/sampling-controls.css">
     <script type="importmap">
     {
         "imports": {
             "d3": "https://cdn.jsdelivr.net/npm/d3@7/+esm",
-            "/components/plot-manager": "/static/js/dist/components/plot-manager.js?nocache",
-            "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
-            "/components/plot": "/static/js/dist/components/plot.js?nocache",
-            "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
-            "/components/panel-manager": "/static/js/dist/components/panel-manager.js?nocache",
-            "/types": "/static/js/dist/types.js?nocache"
+            "/components/plot-manager": "/static/js/dist/components/plot-manager.js",
+            "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js",
+            "/components/plot": "/static/js/dist/components/plot.js",
+            "/types": "/static/js/dist/types.js"
         }
     }
     </script>
 </head>
 <body>
     <div class="container">
-        <div class="graph-container" data-panel-id="graph-container">
+        <div class="graph-container">
             <svg id="graph"></svg>
         </div>
-        <div class="vertical-resizer resizer"></div>
-        <div class="panels-container" id="panels-container">
-            <div class="panel" data-panel-id="cpd-panel">
-                <div class="panel-header">Conditional Probability Table</div>
-                <div class="panel-content">
+        <div class="vertical-resizer" id="vertical-resizer"></div>
+        <div class="panels-container">
+            <div class="upper-panel">
+                <div class="panel-placeholder">
+                    Click a node to view its CPD table
+                </div>
+            </div>
+            <div class="horizontal-resizer" id="upper-resizer"></div>
+            <div class="middle-panel">
+                <div class="distribution-plots-container">
                     <div class="panel-placeholder">
-                        Click a node to view its CPD table
+                        Click a node to view its distribution plot
                     </div>
                 </div>
             </div>
-            <div class="horizontal-resizer resizer"></div>
-            <div class="panel" data-panel-id="distribution-plots">
-                <div class="panel-header">Distribution Plots</div>
-                <div class="panel-content">
-                    <div class="distribution-plots-container">
-                        <div class="panel-placeholder">
-                            Click a node to view its distribution plot
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="horizontal-resizer resizer"></div>
-            <div class="panel" data-panel-id="sampling-controls">
-                <div class="panel-header">Sampling Controls</div>
-                <div class="panel-content">
-                    <!-- Sampling controls will be injected here -->
-                </div>
+            <div class="horizontal-resizer" id="plot-resizer"></div>
+            <div class="lower-panel">
+                <!-- Sampling controls will be injected here -->
             </div>
         </div>
     </div>
     <script type="module">
         import * as d3 from 'd3';
-        import { GraphVisualization } from '/components/graph-visualization';
-        import { PanelManager } from '/components/panel-manager';
+        import { GraphVisualization } from '/static/js/dist/components/graph-visualization.js';
+        
+        // Initialize visualization after both DOM and resources are loaded
+        let initialized = false;
         
         async function initializeViz() {
-            try {
-                console.log('Initializing visualization...');
-                
-                // Initialize panel manager first
-                const panelManager = new PanelManager('panels-container', [
-                    {
-                        id: 'graph-container',
-                        minWidth: 300,
-                        flex: '1 1 70%'
-                    },
-                    {
-                        id: 'cpd-panel',
-                        title: 'Conditional Probability Table',
-                        minWidth: 300,
-                        minHeight: 100,
-                        collapsible: true,
-                        flex: '1 1 30%'
-                    },
-                    {
-                        id: 'distribution-plots',
-                        title: 'Distribution Plots',
-                        minWidth: 300,
-                        minHeight: 100,
-                        collapsible: true,
-                        flex: '1 1 30%'
-                    },
-                    {
-                        id: 'sampling-controls',
-                        title: 'Sampling Controls',
-                        minWidth: 250,
-                        minHeight: 100,
-                        collapsible: true,
-                        flex: '1 1 30%'
-                    }
-                ]);
-                
-                // Initialize graph visualization with panel manager
-                window.graphViz = new GraphVisualization(panelManager);
-            } catch (error) {
-                console.error('Failed to initialize visualization:', error);
+            if (!initialized) {
+                try {
+                    window.graphViz = new GraphVisualization();
+                    initialized = true;
+                } catch (error) {
+                    console.error('Failed to initialize visualization:', error);
+                }
             }
         }
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeViz);
-        } else {
-            initializeViz();
-        }
+        // Initialize immediately since we're using modules
+        initializeViz();
 
+        // Global error handler
         window.addEventListener('error', event => console.error('Script Error:', event.error));
     </script>
 </body>

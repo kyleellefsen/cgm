@@ -21,16 +21,26 @@ export class SamplingControls {
         this.container.innerHTML = this.createTemplate();
         this.setupEventListeners();
         this.updateStatus('Idle');
+
+        // Add collapsible functionality
+        const toggleHeader = this.container.querySelector('#sampling-controls-toggle') as HTMLElement;
+        const content = this.container.querySelector('#sampling-controls-content') as HTMLElement;
+        const toggleIcon = toggleHeader.querySelector('.toggle-icon') as HTMLElement;
+
+        toggleHeader.addEventListener('click', () => {
+            content.classList.toggle('collapsed');
+            toggleIcon.textContent = content.classList.contains('collapsed') ? '▶' : '▼';
+        });
     }
 
     private createTemplate(): string {
         return `
             <div class="sampling-controls">
+                <div class="sampling-controls-header" id="sampling-controls-toggle">
+                    <span>Sampling Controls</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
                 <div class="sampling-controls-content" id="sampling-controls-content">
-                    <button class="generate-button" id="generate-button">
-                        Generate Samples
-                    </button>
-
                     <div class="control-group">
                         <label class="control-label">Sampling Method</label>
                         <select class="sampling-method-select" id="sampling-method">
@@ -95,6 +105,10 @@ export class SamplingControls {
                             </div>
                         </div>
                     </div>
+
+                    <button class="generate-button" id="generate-button">
+                        Generate Samples
+                    </button>
 
                     <div class="status-area">
                         <div class="status-text" id="status-text">Status: Idle</div>

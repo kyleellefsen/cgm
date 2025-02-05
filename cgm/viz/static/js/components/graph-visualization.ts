@@ -11,9 +11,9 @@ import {
     SamplingResult,
     NodeSelection,
     LinkSelection
-} from '../types';
-import { PlotManager } from '/components/plot-manager';
-import { SamplingControls } from '/components/sampling-controls';
+} from '../types.js';
+import { PlotManager } from '../components/plot-manager.js';
+import { SamplingControls } from '../components/sampling-controls.js';
 
 interface HTMLElementWithStyle extends HTMLElement {
     style: CSSStyleDeclaration;
@@ -34,14 +34,13 @@ export class GraphVisualization {
     private linksGroup!: D3SVGGSelection;
     private nodesGroup!: D3SVGGSelection;
     private labelsGroup!: D3SVGGSelection;
-    private plotManager?: PlotManager;
+    private plotManager!: PlotManager;
     private currentGraphState!: GraphState;
     private samplingControls!: SamplingControls | null;
 
-    setupResizers(): void {
+    setupResizers() {
         this.setupVerticalResizer();
-        this.setupHorizontalResizer('upper-resizer', '.upper-panel', '.middle-panel');
-        this.setupHorizontalResizer('plot-resizer', '.middle-panel', '.lower-panel');
+        this.setupHorizontalResizer();
     }
 
     setupVerticalResizer() {
@@ -129,56 +128,72 @@ export class GraphVisualization {
         });
     }
 
-    private setupHorizontalResizer(resizerId: string, upperSelector: string, lowerSelector: string): void {
-        const resizer = document.getElementById(resizerId);
-        const upperPanel = document.querySelector(upperSelector) as HTMLElementWithStyle;
-        const lowerPanel = document.querySelector(lowerSelector) as HTMLElementWithStyle;
+    setupHorizontalResizer() {
+        const resizer = document.getElementById('horizontal-resizer');
+        const upperPanel = document.querySelector('.upper-panel') as HTMLElementWithStyle;
+        const lowerPanel = document.querySelector('.lower-panel') as HTMLElementWithStyle;
         
-        if (!resizer || !upperPanel || !lowerPanel) return;
-
         let isResizing = false;
         let startY: number;
         let startUpperHeight: number;
         let startLowerHeight: number;
-
+        
         const startResize = (e: MouseEvent) => {
             isResizing = true;
-            resizer.classList.add('resizing');
+            resizer?.classList.add('resizing');
             startY = e.pageY;
-            startUpperHeight = upperPanel.offsetHeight;
-            startLowerHeight = lowerPanel.offsetHeight;
+            startUpperHeight = upperPanel?.offsetHeight || 0;
+            startLowerHeight = lowerPanel?.offsetHeight || 0;
             document.documentElement.style.cursor = 'row-resize';
             e.preventDefault();
             e.stopPropagation();
         };
-
+        
         const resize = (e: MouseEvent) => {
-            if (!isResizing) return;
-
+            if (!isResizing || !upperPanel || !lowerPanel) return;
+            
             const dy = e.pageY - startY;
+            
+            // Calculate new heights
             const newUpperHeight = startUpperHeight + dy;
             const newLowerHeight = startLowerHeight - dy;
-
+            
+            // Apply minimum heights
             if (newUpperHeight >= 100 && newLowerHeight >= 100) {
                 upperPanel.style.flex = 'none';
                 lowerPanel.style.flex = 'none';
                 upperPanel.style.height = `${newUpperHeight}px`;
                 lowerPanel.style.height = `${newLowerHeight}px`;
             }
-
             e.preventDefault();
             e.stopPropagation();
         };
-
-        const stopResize = () => {
+        
+        const stopResize = (e: MouseEvent) => {
+            if (!isResizing) return;
             isResizing = false;
-            resizer.classList.remove('resizing');
+            resizer?.classList.remove('resizing');
             document.documentElement.style.cursor = '';
+            e.preventDefault();
+            e.stopPropagation();
         };
-
-        resizer.addEventListener('mousedown', startResize);
+        
+        resizer?.addEventListener('mousedown', startResize);
         document.addEventListener('mousemove', resize);
         document.addEventListener('mouseup', stopResize);
+
+        // Add window resize handler for vertical layout
+        window.addEventListener('resize', () => {
+            const upperPanel = document.querySelector('.upper-panel') as HTMLElementWithStyle;
+            const lowerPanel = document.querySelector('.lower-panel') as HTMLElementWithStyle;
+            if (upperPanel && lowerPanel) {
+                // Reset flex layout
+                upperPanel.style.flex = '1 1 50%';
+                lowerPanel.style.flex = '1 1 50%';
+                upperPanel.style.height = '';
+                lowerPanel.style.height = '';
+            }
+        });
     }
 
     calculateWidth(): number {
@@ -219,15 +234,16 @@ export class GraphVisualization {
         // Add arrow marker
         this.svg.append("defs").append("marker")
             .attr("id", "arrowhead")
-            .attr("viewBox", "-10 -5 20 10")
-            .attr("refX", 0)  // Reset to 0 since we'll handle positioning in the line
+            .attr("viewBox", "-10 -5 20 10")  // Centered viewBox
+            .attr("refX", 15)  // Adjust to position arrow tip relative to node
             .attr("refY", 0)
-            .attr("markerWidth", 20)
-            .attr("markerHeight", 20)
+            .attr("markerWidth", 12)  // Slightly larger
+            .attr("markerHeight", 12)  // Slightly larger
             .attr("orient", "auto")
+            .attr("markerUnits", "userSpaceOnUse")  // Use absolute units
             .append("path")
-            .attr("d", "M-10,-5L0,0L-10,5")
-            .attr("fill", "#64748b");
+            .attr("d", "M-10,-5L0,0L-10,5")  // Reversed path for better appearance
+            .attr("fill", "#64748b");  // Match link color
 
         // Initialize simulation with gentler forces
         this.simulation = d3.forceSimulation<SimulationNode>()
@@ -250,6 +266,9 @@ export class GraphVisualization {
         
         // Set up resizers
         this.setupResizers();
+        
+        // Initialize plot manager
+        this.plotManager = new PlotManager();
         
         // Start update loop
         this.startUpdateLoop();
@@ -368,9 +387,11 @@ export class GraphVisualization {
             }
         }
         
+        console.log('Current nodes:', Array.from(this.simulationNodes.values()));
         
         // Update links
         this.simulationLinks.clear();
+        console.log('Processing links:', newData.links);
         
         newData.links.forEach(link => {
             // Handle both string IDs and object references
@@ -379,6 +400,7 @@ export class GraphVisualization {
             const targetId = typeof link.target === 'string' ? link.target : 
                            'id' in link.target ? link.target.id : '';
             
+            console.log('Processing link:', sourceId, '->', targetId);
             
             const sourceNode = this.simulationNodes.get(sourceId);
             const targetNode = this.simulationNodes.get(targetId);
@@ -390,8 +412,13 @@ export class GraphVisualization {
                     target: targetNode,
                     id: linkId
                 });
+                console.log('Created link:', linkId);
+            } else {
+                console.warn(`Could not create link: missing ${!sourceNode ? 'source' : 'target'} node (${sourceId} -> ${targetId})`);
             }
         });
+        
+        console.log('Current links:', Array.from(this.simulationLinks.values()));
         
         // Update simulation with current data
         const nodes = Array.from(this.simulationNodes.values());
@@ -424,31 +451,13 @@ export class GraphVisualization {
                 this.updateTableHighlighting(updatedNode);
                 
                 // Update plot data if it exists
-                if (this.plotManager && this.plotManager.hasPlot('selected-node')) {
-                    // Fetch fresh distribution data for the node
-                    fetch('/api/node_distribution', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ 
-                            node_name: updatedNode.id, 
-                            codomain: 'counts' 
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && this.plotManager) {
-                            const plotData = {
-                                variable: updatedNode.id,
-                                title: `Distribution for ${updatedNode.id}`,
-                                x_values: data.result.x_values,
-                                y_values: data.result.y_values
-                            };
-                            this.plotManager.updatePlot('selected-node', plotData);
-                        }
-                    })
-                    .catch(error => console.error('Error updating plot:', error));
+                const plotData = {
+                    variable: updatedNode.id,
+                    title: `Distribution for ${updatedNode.id}`,
+                    samples: this.generateDummySamples(updatedNode)
+                };
+                if (this.plotManager.hasPlot('selected-node')) {
+                    this.plotManager.updatePlot('selected-node', plotData);
                 }
             }
         }
@@ -516,6 +525,34 @@ export class GraphVisualization {
             
             // Toggle 'conditioned' class
             node.classed("conditioned", isConditioned);
+            
+            // Update ellipse styling
+            node.select<SVGEllipseElement>("ellipse")
+                .attr("rx", (d.width || 0) / 2)
+                .attr("ry", (d.height || 0) / 2)
+                .style("fill", isConditioned ? "#e0e0e0" : "#fff")
+                .style("stroke", isConditioned ? "#666" : "#999")
+                .style("stroke-width", isConditioned ? "2px" : "1px");
+                
+            // Update text
+            node.select<SVGTextElement>("text.node-label")
+                .text(d.id)
+                .style("font-weight", isConditioned ? "bold" : "normal");
+                
+            // Add or update state indicator if conditioned
+            if (isConditioned) {
+                let stateIndicator = node.select<SVGTextElement>(".state-indicator");
+                if (stateIndicator.empty()) {
+                    stateIndicator = node.append<SVGTextElement>("text")
+                        .attr("class", "state-indicator")
+                        .attr("dy", "20");
+                }
+                stateIndicator
+                    .text(`State: ${d.conditioned_state}`)
+                    .attr("text-anchor", "middle");
+            } else {
+                node.select<SVGTextElement>(".state-indicator").remove();
+            }
         });
         
         // Update links
@@ -551,13 +588,7 @@ export class GraphVisualization {
             .attr("class", "node-states");
             
         states.merge(stateEnter as any)
-            .text(d => {
-                const totalStates = d.states;
-                const isConditioned = d.conditioned_state >= 0;
-                return isConditioned ? 
-                    `state: ${d.conditioned_state}/${totalStates}` : 
-                    `states: ${totalStates}`;
-            });
+            .text(d => `states: ${d.states}`);
     }
 
     calculateNodeWidth(text: string): number {
@@ -664,36 +695,21 @@ export class GraphVisualization {
             delete this.currentGraphState.conditions[d.id];
         }
 
-        // Try to get distribution for this node
+        // Try to get samples for this node
         try {
-            console.log('Fetching distribution for node:', d.id);
-            const response = await fetch('/api/node_distribution', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    node_name: d.id, 
-                    codomain: 'counts' 
-                })
-            });
+            console.log('Fetching samples for node:', d.id);
+            const response = await fetch(`/api/node_distribution/${d.id}`);
             console.log('Response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('Received distribution data:', data);
-                
-                if (!data.success) {
-                    console.error('Distribution request failed:', data.error?.message);
-                    return;
-                }
+                console.log('Received samples:', data);
                 
                 // Create or update the distribution plot
                 const plotData = {
                     variable: d.id,
                     title: `Distribution for ${d.id}`,
-                    x_values: data.result.x_values,
-                    y_values: data.result.y_values
+                    samples: data.samples
                 };
                 console.log('Plot data:', plotData);
                 
@@ -724,11 +740,14 @@ export class GraphVisualization {
                     console.log('Updating existing plot');
                     this.plotManager.updatePlot('selected-node', plotData);
                 }
+                
+                // Force layout recalculation
+                window.dispatchEvent(new Event('resize'));
             } else {
-                console.error('Failed to fetch distribution:', await response.text());
+                console.error('Failed to fetch samples:', await response.text());
             }
         } catch (error) {
-            console.error('Error fetching distribution:', error);
+            console.error('Error fetching samples:', error);
         }
 
         // If auto-update is enabled and we have a sampling control instance
@@ -736,6 +755,37 @@ export class GraphVisualization {
             this.samplingControls.getSettings().autoUpdate) {
             this.samplingControls.generateSamples();
         }
+    }
+
+    // Temporary method to generate dummy samples based on node state
+    generateDummySamples(node: SimulationNode): number[] {
+        const numSamples = 1000;
+        const samples: number[] = [];
+        const numStates = node.states;
+        
+        // If node is conditioned, generate samples mostly matching that state
+        if (node.conditioned_state >= 0) {
+            const prob = 0.8;  // 80% probability of matching conditioned state
+            for (let i = 0; i < numSamples; i++) {
+                if (Math.random() < prob) {
+                    samples.push(node.conditioned_state);
+                } else {
+                    // Randomly choose one of the other states
+                    let otherState;
+                    do {
+                        otherState = Math.floor(Math.random() * numStates);
+                    } while (otherState === node.conditioned_state);
+                    samples.push(otherState);
+                }
+            }
+        } else {
+            // If not conditioned, generate roughly uniform distribution
+            for (let i = 0; i < numSamples; i++) {
+                samples.push(Math.floor(Math.random() * numStates));
+            }
+        }
+        
+        return samples;
     }
 
     async handleSamplingRequest(settings: SamplingSettings): Promise<SamplingResult> {
@@ -753,6 +803,7 @@ export class GraphVisualization {
         const requestData = {
             method,
             num_samples: sampleSize,
+            conditions: this.currentGraphState.conditions,
             options: {
                 burn_in: burnIn,
                 thinning,
@@ -775,43 +826,22 @@ export class GraphVisualization {
             }
 
             const result = await response.json();
-            if (!result.success) {
-                throw new Error(result.error?.message || 'Unknown sampling error');
-            }
-            
             this.currentGraphState.lastSamplingResult = result;
             
-            // Update distribution plot if we have a selected node
-            if (this.selectedNode && this.plotManager && this.plotManager.hasPlot('selected-node')) {
-                // Fetch fresh distribution for the selected node
-                const distResponse = await fetch('/api/node_distribution', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        node_name: this.selectedNode.id, 
-                        codomain: 'counts' 
-                    })
-                });
-                if (distResponse.ok) {
-                    const distData = await distResponse.json();
-                    if (distData.success) {
-                        const plotData = {
-                            variable: this.selectedNode.id,
-                            title: `Distribution for ${this.selectedNode.id}`,
-                            x_values: distData.result.x_values,
-                            y_values: distData.result.y_values
-                        };
-                        this.plotManager.updatePlot('selected-node', plotData);
-                    }
-                }
+            // Update distribution plot if it exists
+            if (this.plotManager.hasPlot('selected-node')) {
+                const plotData = {
+                    variable: this.selectedNode?.id || '',
+                    title: `Distribution for ${this.selectedNode?.id || ''}`,
+                    samples: result.samples
+                };
+                this.plotManager.updatePlot('selected-node', plotData);
             }
 
             return {
-                totalSamples: result.result.total_samples,
-                acceptedSamples: result.result.accepted_samples,
-                rejectedSamples: result.result.rejected_samples
+                totalSamples: result.total_samples,
+                acceptedSamples: result.accepted_samples,
+                rejectedSamples: result.rejected_samples
             };
         } catch (error) {
             console.error('Error during sampling:', error);
@@ -821,7 +851,7 @@ export class GraphVisualization {
 
     async initializeSamplingControls() {
         try {
-            const { SamplingControls } = await import('/components/sampling-controls');
+            const { SamplingControls } = await import('./sampling-controls.js');
             this.samplingControls = new SamplingControls(
                 document.querySelector('.lower-panel') as HTMLElement,
                 this.handleSamplingRequest.bind(this)
@@ -865,7 +895,7 @@ export class GraphVisualization {
             .join("line")
             .attr("class", "link")
             .attr("marker-end", "url(#arrowhead)")
-            .style("stroke", "#64748b")
+            .style("stroke", "#999")
             .style("stroke-width", "1.5px")
             .attr("x1", d => {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
@@ -883,15 +913,13 @@ export class GraphVisualization {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
                 const dy = (d.target.y || 0) - (d.source.y || 0);
                 const angle = Math.atan2(dy, dx);
-                const targetRadius = ((d.target.width || 0) / 2);
-                return (d.target.x || 0) - Math.cos(angle) * targetRadius;  // Remove the offset
+                return (d.target.x || 0) - Math.cos(angle) * ((d.target.width || 0) / 2);
             })
             .attr("y2", d => {
                 const dx = (d.target.x || 0) - (d.source.x || 0);
                 const dy = (d.target.y || 0) - (d.source.y || 0);
                 const angle = Math.atan2(dy, dx);
-                const targetRadius = ((d.target.height || 0) / 2);
-                return (d.target.y || 0) - Math.sin(angle) * targetRadius;  // Remove the offset
+                return (d.target.y || 0) - Math.sin(angle) * ((d.target.height || 0) / 2);
             });
 
         // Update node groups
@@ -902,5 +930,5 @@ export class GraphVisualization {
         this.labelsGroup.selectAll<SVGTextElement, SimulationNode>(".node-states")
             .attr("x", d => d.x || 0)
             .attr("y", d => (d.y || 0) + this.nodeHeight);
-    } 
-}
+    }
+} 
