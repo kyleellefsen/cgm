@@ -1,143 +1,126 @@
-import { PanelConfig } from '../types';
+import { PanelConfig, PanelLayout } from '../types';
 
 export class PanelManager {
+    private static readonly GOLDEN_LAYOUT_CLASSES = {
+        root: 'lm_goldenlayout',
+        row: 'lm_row',
+        column: 'lm_column',
+        stack: 'lm_stack',
+        component: 'lm_item',
+        header: 'lm_header',
+        content: 'lm_content'
+    };
+
+    private components: Map<string, (container: HTMLElement, state: any) => void> = new Map();
     private container: HTMLElement;
-    private startX: number = 0;
-    private startY: number = 0;
 
     constructor(containerId: string, panels: PanelConfig[]) {
         const container = document.getElementById(containerId);
         if (!container) {
             throw new Error(`Container with id '${containerId}' not found`);
         }
+        
         this.container = container;
+        // Add GoldenLayout root class
+        container.className = `${container.className} ${PanelManager.GOLDEN_LAYOUT_CLASSES.root}`;
         
-        // Initialize panels
-        panels.forEach(config => this.initPanel(config));
+        // Initialize with default layout if none provided
+        this.buildLayout(container, {
+            type: 'row',
+            children: panels.map(panel => ({
+                type: 'component',
+                component: panel
+            }))
+        });
         
-        // Setup resize handling
-        this.setupResizeHandling();
+        // Add GoldenLayout-style event listeners
+        window.addEventListener('resize', () => this.updateSize());
     }
 
-    private initPanel(config: PanelConfig): void {
-        const panel = document.querySelector(`[data-panel-id="${config.id}"]`) as HTMLElement;
-        if (!panel) return;
+    public registerComponent(type: string, factory: (container: HTMLElement, state: any) => void): void {
+        this.components.set(type, factory);
+    }
 
-
-        // Setup collapsible behavior
-        if (config.collapsible) {
-            const header = panel.querySelector('.panel-header');
-            if (header) {
-                header.addEventListener('click', () => {
-                    const isCollapsed = panel.classList.toggle('collapsed');
-                    config.onCollapse?.(isCollapsed);
-                });
-            }
+    public createComponent(config: PanelConfig): HTMLElement {
+        const component = document.createElement('div');
+        component.className = `${PanelManager.GOLDEN_LAYOUT_CLASSES.component} ${config.type}-panel`;
+        
+        const factory = this.components.get(config.type);
+        if (factory) {
+            factory(component, config.componentState || {});
+        } else {
+            console.warn(`No component registered for type: ${config.type}`);
         }
+        
+        return component;
+    }
 
-        // Set initial content
-        if (config.initialContent) {
-            const contentContainer = panel.querySelector('.panel-content');
-            if (contentContainer) {
-                if (config.initialContent instanceof HTMLElement) {
-                    contentContainer.appendChild(config.initialContent);
-                } else {
-                    contentContainer.innerHTML = config.initialContent;
+    private buildLayout(parent: HTMLElement, config: PanelLayout): void {
+        const element = document.createElement('div');
+        
+        // Add GoldenLayout-style classes
+        switch(config.type) {
+            case 'row':
+                element.className = PanelManager.GOLDEN_LAYOUT_CLASSES.row;
+                element.style.display = 'flex';
+                element.style.flexDirection = 'row';
+                break;
+                
+            case 'column':
+                element.className = PanelManager.GOLDEN_LAYOUT_CLASSES.column;
+                element.style.display = 'flex';
+                element.style.flexDirection = 'column';
+                break;
+                
+            case 'stack':
+                element.className = PanelManager.GOLDEN_LAYOUT_CLASSES.stack;
+                break;
+                
+            case 'component':
+                if (config.component) {
+                    const component = this.createComponent(config.component);
+                    element.appendChild(component);
                 }
-            }
+                return;
         }
 
-        // Setup resize observer
-        const resizeObserver = new ResizeObserver(entries => {
-            const entry = entries[0];
-            if (entry && config.onResize) {
-                config.onResize(entry.contentRect.width, entry.contentRect.height);
-            }
-        });
-        resizeObserver.observe(panel);
-    }
-
-    private setupResizeHandling(): void {
-        let activeResizer: HTMLElement | null = null;
-
-        this.container.addEventListener('mousedown', (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.classList.contains('vertical-resizer') || target.classList.contains('horizontal-resizer')) {
-                activeResizer = target;
-                this.startX = e.pageX;
-                this.startY = e.pageY;
-                document.body.classList.add('resizing');
+        // Handle children recursively
+        config.children?.forEach(childConfig => {
+            this.buildLayout(element, childConfig);
+            
+            // Add GoldenLayout-style splitters between siblings
+            if (config.type === 'row' || config.type === 'column') {
+                const splitter = document.createElement('div');
+                splitter.className = 'lm_splitter';
+                splitter.dataset.orientation = config.type === 'row' ? 'vertical' : 'horizontal';
+                element.appendChild(splitter);
             }
         });
 
-        document.addEventListener('mousemove', (e: MouseEvent) => {
-            if (!activeResizer) return;
+        parent.appendChild(element);
+    }
 
-            const isVertical = activeResizer.classList.contains('vertical-resizer');
-            const dx = e.pageX - this.startX;
-            const dy = e.pageY - this.startY;
+    public addComponent(config: PanelConfig, parent?: HTMLElement): void {
+        const component = this.createComponent(config);
+        (parent || this.container).appendChild(component);
+    }
 
-            if (isVertical) {
-                this.handleVerticalResize(activeResizer, dx, e.pageX);
-            } else {
-                this.handleHorizontalResize(activeResizer, dy, e.pageY);
-            }
+    public removeComponent(component: HTMLElement): void {
+        component.remove();
+    }
+
+    public updateSize(): void {
+        // GoldenLayout-style size update propagation
+        this.container.querySelectorAll(`.${PanelManager.GOLDEN_LAYOUT_CLASSES.component}`).forEach(component => {
+            const width = component.parentElement?.offsetWidth || 0;
+            const height = component.parentElement?.offsetHeight || 0;
+            component.dispatchEvent(new CustomEvent('resize', { 
+                detail: { width, height }
+            }));
         });
-
-        document.addEventListener('mouseup', () => {
-            if (activeResizer) {
-                activeResizer = null;
-                document.body.classList.remove('resizing');
-            }
-        });
     }
 
-    private handleVerticalResize(resizer: HTMLElement, dx: number, currentX: number): void {
-        const prev = resizer.previousElementSibling as HTMLElement;
-        const next = resizer.nextElementSibling as HTMLElement;
-        if (prev && next) {
-            const prevWidth = prev.offsetWidth + dx;
-            const nextWidth = next.offsetWidth - dx;
-            const prevMin = parseFloat(getComputedStyle(prev).getPropertyValue('--min-width') || '0');
-            const nextMin = parseFloat(getComputedStyle(next).getPropertyValue('--min-width') || '0');
-
-            if (prevWidth >= prevMin && nextWidth >= nextMin) {
-                prev.style.width = `${prevWidth}px`;
-                next.style.width = `${nextWidth}px`;
-                this.startX = currentX;
-            }
-        }
-    }
-
-    private handleHorizontalResize(resizer: HTMLElement, dy: number, currentY: number): void {
-        const prev = resizer.previousElementSibling as HTMLElement;
-        const next = resizer.nextElementSibling as HTMLElement;
-        if (prev && next) {
-            const prevHeight = prev.offsetHeight + dy;
-            const nextHeight = next.offsetHeight - dy;
-            const prevMin = parseFloat(getComputedStyle(prev).getPropertyValue('--min-height') || '0');
-            const nextMin = parseFloat(getComputedStyle(next).getPropertyValue('--min-height') || '0');
-
-            if (prevHeight >= prevMin && nextHeight >= nextMin) {
-                prev.style.height = `${prevHeight}px`;
-                next.style.height = `${nextHeight}px`;
-                this.startY = currentY;
-            }
-        }
-    }
-
-    public setPanelContent(id: string, content: HTMLElement | string): void {
-        const panel = document.querySelector(`[data-panel-id="${id}"]`);
-        if (!panel) return;
-        
-        const contentContainer = panel.querySelector('.panel-content');
-        if (contentContainer) {
-            if (content instanceof HTMLElement) {
-                contentContainer.innerHTML = '';
-                contentContainer.appendChild(content);
-            } else {
-                contentContainer.innerHTML = content;
-            }
-        }
+    public removeAllComponents(): void {
+        if (this.container) this.container.innerHTML = '';
     }
 } 

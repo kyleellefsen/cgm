@@ -125,15 +125,16 @@ export interface NodeDistributionResponse {
 
 // Panel Management Types
 export interface PanelConfig {
-    id: string;                    // Unique identifier for the panel
-    title: string;               // Panel header title
-    collapsible: boolean;       // Whether panel can be collapsed
-    onResize: (width: number, height: number) => void;
-    onCollapse: (collapsed: boolean) => void;
-    initialContent: HTMLElement;
+    type: string;                 // Component type identifier
+    title?: string;               // Display title
+    componentState?: any;         // Initialization state
+    width?: number;               // Percentage width
+    height?: number;              // Percentage height
+    isClosable?: boolean;         // Default: true
+    reorderEnabled?: boolean;     // Default: true
 }
 
 export interface PanelDimensions {
-    width: number;
-    height: number;
+    width: number;  // Percentage width
+    height: number; // Percentage height
 }
