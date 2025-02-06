@@ -40,8 +40,8 @@ export class GraphVisualization {
 
     setupResizers(): void {
         this.setupVerticalResizer();
-        this.setupHorizontalResizer('upper-resizer', '.upper-panel', '.middle-panel');
-        this.setupHorizontalResizer('plot-resizer', '.middle-panel', '.lower-panel');
+        this.setupHorizontalResizer('upper-resizer', '.cpd-table-panel', '.distribution-plot-panel');
+        this.setupHorizontalResizer('plot-resizer', '.distribution-plot-panel', '.sampling-controls-panel');
     }
 
     setupVerticalResizer() {
@@ -608,7 +608,7 @@ export class GraphVisualization {
             return;
         }
 
-        const panel = d3.select<HTMLDivElement, unknown>(".upper-panel");
+        const panel = d3.select<HTMLDivElement, unknown>(".cpd-table-panel");
         
         if (!d.cpd) {
             panel.html(`
@@ -696,7 +696,7 @@ export class GraphVisualization {
                 console.log('Plot data:', plotData);
                 
                 // Set up the lower panel structure
-                const lowerPanel = d3.select<HTMLDivElement, unknown>(".lower-panel");
+                const lowerPanel = d3.select<HTMLDivElement, unknown>(".sampling-controls-panel");
                 console.log('Lower panel found:', !lowerPanel.empty());
                 
                 // Ensure sampling controls don't take all space
@@ -821,7 +821,7 @@ export class GraphVisualization {
         try {
             const { SamplingControls } = await import('/components/sampling-controls');
             this.samplingControls = new SamplingControls(
-                document.querySelector('.lower-panel') as HTMLElement,
+                document.querySelector('.sampling-controls-panel') as HTMLElement,
                 this.handleSamplingRequest.bind(this)
             );
         } catch (error) {
@@ -830,7 +830,7 @@ export class GraphVisualization {
     }
 
     updateTableHighlighting(node: SimulationNode) {
-        const table = d3.select<HTMLTableElement, unknown>(".upper-panel .cpd-table");
+        const table = d3.select<HTMLTableElement, unknown>(".cpd-table-panel .cpd-table");
         if (!table.node()) return;  // Exit if no table is displayed
 
         // Clear any existing highlighting

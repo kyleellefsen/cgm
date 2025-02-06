@@ -122,19 +122,3 @@ export interface NodeDistributionResponse {
     error?: NodeDistributionError;
     result?: NodeDistributionSuccess;
 }
-
-// Panel Management Types
-export interface PanelConfig {
-    type: string;                 // Component type identifier
-    title?: string;               // Display title
-    componentState?: any;         // Initialization state
-    width?: number;               // Percentage width
-    height?: number;              // Percentage height
-    isClosable?: boolean;         // Default: true
-    reorderEnabled?: boolean;     // Default: true
-}
-
-export interface PanelDimensions {
-    width: number;  // Percentage width
-    height: number; // Percentage height
-}

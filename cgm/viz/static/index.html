@@ -24,27 +24,35 @@
 </head>
 <body>
     <div class="container">
-        <div class="graph-container">
-            <svg id="graph"></svg>
+        <div class="graph-container panel">
+            <div class="panel-header">Graph Visualization</div>
+            <div class="panel-content">
+                <svg id="graph"></svg>
+            </div>
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
         <div class="panels-container">
-            <div class="upper-panel">
+            <div class="panel cpd-table-panel">
+                <div class="panel-header">CPD Table</div>
+                <div class="panel-content">
                     <div class="panel-placeholder">
                         Click a node to view its CPD table
                     </div>
                 </div>
+            </div>
             <div class="horizontal-resizer" id="upper-resizer"></div>
-            <div class="middle-panel">
-                    <div class="distribution-plots-container">
-                        <div class="panel-placeholder">
-                            Click a node to view its distribution plot
-                        </div>
-                    </div>
+            <div class="panel distribution-plot-panel">
+                <div class="panel-header">Distribution Plot</div>
+                <div class="panel-content">
+                    <div class="distribution-plots-container"></div>
                 </div>
+            </div>
             <div class="horizontal-resizer" id="plot-resizer"></div>
-            <div class="lower-panel">
+            <div class="panel sampling-controls-panel">
+                <div class="panel-header">Sampling Controls</div>
+                <div class="panel-content">
                     <!-- Sampling controls will be injected here -->
+                </div>
             </div>
         </div>
     </div>

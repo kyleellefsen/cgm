@@ -8,8 +8,8 @@ export class PlotManager {
 
     constructor() {
         // Create a container for plots in the middle panel
-        const plotsContainer = d3.select<HTMLDivElement, unknown>(".distribution-plots-container");
-        
+        const plotsContainer = d3.select<HTMLDivElement, unknown>(".distribution-plot-panel .panel-content");        
+
         if (plotsContainer.empty()) {
             throw new Error("Distribution plots container not found");
         }

@@ -26,7 +26,8 @@ export class SamplingControls {
     private createTemplate(): string {
         return `
             <div class="sampling-controls panel">
-                <div class="sampling-controls-content">
+                <div class="panel-header">Sampling Controls</div>
+                <div class="panel-content">
                     <div class="control-group">
                         <label class="control-label">Sampling Method</label>
                         <select class="sampling-method-select" id="sampling-method">
