@@ -12,6 +12,7 @@
     {
         "imports": {
             "d3": "https://cdn.jsdelivr.net/npm/d3@7/+esm",
+            "/components/panel-manager": "/static/js/dist/components/panel-manager.js?nocache",
             "/components/plot-manager": "/static/js/dist/components/plot-manager.js?nocache",
             "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
             "/components/plot": "/static/js/dist/components/plot.js?nocache",
@@ -26,18 +27,16 @@
 <body>
     <!-- `panels-container` is organized as a tree of `flex-row` and 
          `flex-column`, with `panel` as the leaves. -->
-    <div class="panels-container">
-        <div class="flex flex-row">
-            <div class="panel graph-container flex">
-                <div class="panel-header">Graph Visualization</div>
-                <div class="panel-content">
-                    <svg id="graph"></svg>
-                </div>
+    <div class="panels-container panels-row">
+        <div class="panel graph-container">
+            <div class="panel-header">Graph Visualization</div>
+            <div class="panel-content">
+                <svg id="graph"></svg>
             </div>
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
-        <div class="flex flex-column">
-            <div class="panel cpd-table-panel flex">
+        <div class="panels-column">
+            <div class="panel cpd-table-panel">
                 <div class="panel-header">CPD Table</div>
                 <div class="panel-content">
                     <div class="panel-placeholder">
@@ -46,14 +45,14 @@
                 </div>
             </div>
             <div class="horizontal-resizer" id="upper-resizer"></div>
-            <div class="panel distribution-plot-panel flex">
+            <div class="panel distribution-plot-panel">
                 <div class="panel-header">Distribution Plot</div>
                 <div class="panel-content">
                     <div class="distribution-plots-container"></div>
                 </div>
             </div>
             <div class="horizontal-resizer" id="plot-resizer"></div>
-            <div class="panel sampling-controls-panel flex">
+            <div class="panel sampling-controls-panel">
                 <div class="panel-header">Sampling Controls</div>
                 <div class="panel-content">
                     <!-- Sampling controls will be injected here -->

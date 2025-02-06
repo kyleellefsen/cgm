@@ -14,14 +14,3 @@ body {
     overflow: hidden; /* Prevent scrolling on body */
 }
 
-.flex {
-    display: flex;
-}
-
-.container {
-    display: flex;
-    width: 100vw;
-    height: 100vh;
-    position: relative;
-    overflow: hidden; /* Prevent container scrolling */
-}

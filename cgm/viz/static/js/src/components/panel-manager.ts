@@ -5,59 +5,61 @@ interface HTMLElementWithStyle extends HTMLElement {
 }
 
 export class PanelManager {
-    private graphContainer: HTMLElementWithStyle;
-    private panelsContainer: HTMLElementWithStyle;
     private onGraphResized: (newWidth: number) => void;
 
     constructor(onGraphResized: (newWidth: number) => void) {
         this.onGraphResized = onGraphResized;
-        this.graphContainer = document.querySelector('.graph-container') as HTMLElementWithStyle;
-        this.panelsContainer = document.querySelector('.panels-container') as HTMLElementWithStyle;
+        console.log("Settings up resizers");
         this.setupResizers();
     }
 
     setupResizers(): void {
         this.setupVerticalResizer();
-        this.setupHorizontalResizer('upper-resizer', '.cpd-table-panel', '.distribution-plot-panel');
-        this.setupHorizontalResizer('plot-resizer', '.distribution-plot-panel', '.sampling-controls-panel');
+        this.setupHorizontalResizer('upper-resizer');
+        this.setupHorizontalResizer('plot-resizer');
     }
 
     private setupVerticalResizer() {
-        const resizer = document.getElementById('vertical-resizer');
+        console.log("Setting up vertical resizer");
+        const resizer = document.getElementsByClassName('vertical-resizer')[0];
+        const prevSibling = resizer.previousElementSibling as HTMLElementWithStyle;
+        const nextSibling = resizer.nextElementSibling as HTMLElementWithStyle;
+        console.log("Previous sibling:", prevSibling);
+        console.log("Next sibling:", nextSibling);
         
         let isResizing = false;
         let startX: number;
-        let startGraphWidth: number;
-        let startPanelsWidth: number;
+        let prevSiblingWidth: number;
+        let nextSiblingWidth: number;
         
         const startResize = (e: MouseEvent) => {
             isResizing = true;
             resizer?.classList.add('resizing');
             startX = e.pageX;
-            startGraphWidth = this.graphContainer?.offsetWidth || 0;
-            startPanelsWidth = this.panelsContainer?.offsetWidth || 0;
+            prevSiblingWidth = prevSibling?.offsetWidth || 0;
+            nextSiblingWidth = nextSibling?.offsetWidth || 0;
             document.documentElement.style.cursor = 'col-resize';
             e.preventDefault();
             e.stopPropagation();
         };
         
         const resize = (e: MouseEvent) => {
-            if (!isResizing || !this.graphContainer || !this.panelsContainer) return;
+            if (!isResizing) return;
             
             const dx = e.pageX - startX;
             
             // Calculate new widths
-            const newGraphWidth = startGraphWidth + dx;
-            const newPanelsWidth = startPanelsWidth - dx;
+            const newPrevSiblingWidth = prevSiblingWidth + dx;
+            const newNextSiblingWidth = nextSiblingWidth - dx;
             
             // Apply minimum widths
-            if (newGraphWidth >= 200 && newPanelsWidth >= 200) {
+            if (newPrevSiblingWidth >= 200 && newNextSiblingWidth >= 200) {
                 // Use flex-basis instead of fixed widths to maintain flex behavior
-                this.graphContainer.style.flexBasis = `${newGraphWidth}px`;
-                this.panelsContainer.style.flexBasis = `${newPanelsWidth}px`;
+                prevSibling.style.flexBasis = `${newPrevSiblingWidth}px`;
+                nextSibling.style.flexBasis = `${newNextSiblingWidth}px`;
                 
                 // Notify graph visualization of width change
-                this.onGraphResized(newGraphWidth);
+                this.onGraphResized(newPrevSiblingWidth);
             }
             e.preventDefault();
             e.stopPropagation();
@@ -72,31 +74,32 @@ export class PanelManager {
             e.stopPropagation();
         };
         
-        resizer?.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
+        resizer?.addEventListener('mousedown', (e: Event) => startResize(e as MouseEvent));
+        document.addEventListener('mousemove', (e: Event) => resize(e as MouseEvent));
+        document.addEventListener('mouseup', (e: Event) => stopResize(e as MouseEvent));
 
         // Add window resize handler
         window.addEventListener('resize', () => {
-            if (this.graphContainer && this.panelsContainer) {
+            if (prevSibling && nextSibling) {
                 // Reset flex layout
-                this.graphContainer.style.flex = '1 1 70%';
-                this.panelsContainer.style.flex = '1 1 30%';
-                this.graphContainer.style.width = '';
-                this.panelsContainer.style.width = '';
+                prevSibling.style.flex = '1 1 70%';
+                nextSibling.style.flex = '1 1 30%';
+                prevSibling.style.width = '';
+                nextSibling.style.width = '';
             }
             
             // Notify graph visualization of width change
-            this.onGraphResized(this.graphContainer?.offsetWidth || 0);
+            this.onGraphResized(prevSibling.offsetWidth);
         });
     }
 
-    private setupHorizontalResizer(resizerId: string, upperSelector: string, lowerSelector: string): void {
+    private setupHorizontalResizer(resizerId: string): void {
         const resizer = document.getElementById(resizerId);
-        const upperPanel = document.querySelector(upperSelector) as HTMLElementWithStyle;
-        const lowerPanel = document.querySelector(lowerSelector) as HTMLElementWithStyle;
+        if (!resizer) return;
+        const prevPanel =  resizer.previousElementSibling as HTMLElementWithStyle;
+        const nextPanel = resizer.nextElementSibling as HTMLElementWithStyle;
         
-        if (!resizer || !upperPanel || !lowerPanel) return;
+        if (!resizer || !prevPanel || !nextPanel) return;
 
         let isResizing = false;
         let startY: number;
@@ -107,8 +110,8 @@ export class PanelManager {
             isResizing = true;
             resizer.classList.add('resizing');
             startY = e.pageY;
-            startUpperHeight = upperPanel.offsetHeight;
-            startLowerHeight = lowerPanel.offsetHeight;
+            startUpperHeight = prevPanel.offsetHeight;
+            startLowerHeight = nextPanel.offsetHeight;
             document.documentElement.style.cursor = 'row-resize';
             e.preventDefault();
             e.stopPropagation();
@@ -122,10 +125,10 @@ export class PanelManager {
             const newLowerHeight = startLowerHeight - dy;
 
             if (newUpperHeight >= 100 && newLowerHeight >= 100) {
-                upperPanel.style.flex = 'none';
-                lowerPanel.style.flex = 'none';
-                upperPanel.style.height = `${newUpperHeight}px`;
-                lowerPanel.style.height = `${newLowerHeight}px`;
+                prevPanel.style.flex = 'none';
+                nextPanel.style.flex = 'none';
+                prevPanel.style.height = `${newUpperHeight}px`;
+                nextPanel.style.height = `${newLowerHeight}px`;
             }
 
             e.preventDefault();
