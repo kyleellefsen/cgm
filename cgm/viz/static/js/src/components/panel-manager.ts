@@ -79,9 +79,18 @@ export class PanelManager {
         // Add window resize handler
         window.addEventListener('resize', () => {
             if (prevSibling && nextSibling) {
-                // Reset flex layout
-                prevSibling.style.flex = '1 1 70%';
-                nextSibling.style.flex = '1 1 30%';
+                // Get current flex basis values
+                const prevBasis = parseFloat(prevSibling.style.flexBasis) || prevSibling.offsetWidth;
+                const nextBasis = parseFloat(nextSibling.style.flexBasis) || nextSibling.offsetWidth;
+                const totalWidth = prevBasis + nextBasis;
+                
+                // Calculate and preserve the ratio
+                const prevRatio = (prevBasis / totalWidth * 100).toFixed(0);
+                const nextRatio = (nextBasis / totalWidth * 100).toFixed(0);
+                
+                // Apply the preserved ratios
+                prevSibling.style.flex = `1 1 ${prevRatio}%`;
+                nextSibling.style.flex = `1 1 ${nextRatio}%`;
                 prevSibling.style.width = '';
                 nextSibling.style.width = '';
             }
