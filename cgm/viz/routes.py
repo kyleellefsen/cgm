@@ -12,6 +12,7 @@ from . import models as m
 from ..inference.approximate import sampling
 from ..inference.approximate.sampling import ForwardSamplingCertificate
 
+
 async def get_viz_state(request: fastapi.Request) -> VizState:
     """Dependency to get the visualization state."""
     return request.app.state.viz_state
@@ -22,9 +23,14 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     
     @app.get("/", response_class=HTMLResponse)
-    async def index() -> FileResponse:
+    async def index() -> HTMLResponse:
         """Serve the visualization page."""
-        return FileResponse(static_dir / "index.html")
+
+        cache_buster = f"?v={int(time.time())}"
+        html_content = (static_dir / "index.html").read_text()
+        # Replace all instances of "?nocache" with the current timestamp
+        html_content = html_content.replace("?nocache", cache_buster)
+        return HTMLResponse(content=html_content)
 
     @app.get("/state")
     async def get_state(viz_state: VizState = Depends(get_viz_state)) -> Dict:

@@ -16,6 +16,7 @@
             "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
             "/components/plot": "/static/js/dist/components/plot.js?nocache",
             "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
+            "/utils/graph-utils": "/static/js/dist/utils/graph-utils.js?nocache",
             "/types": "/static/js/dist/types.js?nocache",
             "/main": "/static/js/dist/main.js?nocache"
         }
@@ -27,7 +28,7 @@
          `flex-column`, with `panel` as the leaves. -->
     <div class="panels-container">
         <div class="flex flex-row">
-            <div class="panel graph-container">
+            <div class="panel graph-container flex">
                 <div class="panel-header">Graph Visualization</div>
                 <div class="panel-content">
                     <svg id="graph"></svg>
@@ -36,7 +37,7 @@
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
         <div class="flex flex-column">
-            <div class="panel cpd-table-panel">
+            <div class="panel cpd-table-panel flex">
                 <div class="panel-header">CPD Table</div>
                 <div class="panel-content">
                     <div class="panel-placeholder">
@@ -45,14 +46,14 @@
                 </div>
             </div>
             <div class="horizontal-resizer" id="upper-resizer"></div>
-            <div class="panel distribution-plot-panel">
+            <div class="panel distribution-plot-panel flex">
                 <div class="panel-header">Distribution Plot</div>
                 <div class="panel-content">
                     <div class="distribution-plots-container"></div>
                 </div>
             </div>
             <div class="horizontal-resizer" id="plot-resizer"></div>
-            <div class="panel sampling-controls-panel">
+            <div class="panel sampling-controls-panel flex">
                 <div class="panel-header">Sampling Controls</div>
                 <div class="panel-content">
                     <!-- Sampling controls will be injected here -->

@@ -19,7 +19,8 @@
     "baseUrl": "cgm/viz/static/js/src",
     "paths": {
       "/components/*": ["./components/*"],
-      "/types": ["./types"]
+      "/types": ["./types"],
+      "/utils/*": ["./utils/*"],
     },
     "allowImportingTsExtensions": false,
     "moduleDetection": "force"

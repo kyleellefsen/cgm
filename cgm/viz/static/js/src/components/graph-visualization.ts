@@ -14,14 +14,14 @@ import {
 } from '../types';
 import { PlotManager } from '/components/plot-manager';
 import { SamplingControls } from '/components/sampling-controls';
-import { PanelManager } from '/components/panel-manager';
+// import { PanelManager } from '/components/panel-manager';
 import {
     calculateNodeWidth,
     calculateLinkEndpoints,
     calculateNodeClasses,
     calculateTableHighlightSelectors,
     calculateInitialNodePosition
-} from '../utils/graph-utils';
+} from '/utils/graph-utils';
 
 interface HTMLElementWithStyle extends HTMLElement {
     style: CSSStyleDeclaration;
@@ -45,7 +45,7 @@ export class GraphVisualization {
     private plotManager?: PlotManager;
     private currentGraphState!: GraphState;
     private samplingControls!: SamplingControls | null;
-    private panelManager!: PanelManager;
+    // private panelManager!: PanelManager;
 
     private calculateWidth(): number {
         const container = document.querySelector('.graph-container') as HTMLElementWithStyle;
@@ -104,12 +104,12 @@ export class GraphVisualization {
         this.labelsGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
         
         // Set up panel manager
-        this.panelManager = new PanelManager((newWidth: number) => {
-            this.width = newWidth;
-            this.svg.attr("width", this.width);
-            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
-            this.simulation.alpha(0.3).restart();
-        });
+        // this.panelManager = new PanelManager((newWidth: number) => {
+        //     this.width = newWidth;
+        //     this.svg.attr("width", this.width);
+        //     this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
+        //     this.simulation.alpha(0.3).restart();
+        // });
         
         // Start update loop
         this.startUpdateLoop();
