@@ -42,7 +42,7 @@ export interface GraphData {
 
 export interface GraphState {
     conditions: Record<string, number>;
-    lastSamplingResult: any | null;
+    lastSamplingResult: SamplingResult | null;
 }
 
 export interface PlotData {
@@ -121,4 +121,4 @@ export interface NodeDistributionResponse {
     success: boolean;
     error?: NodeDistributionError;
     result?: NodeDistributionSuccess;
-} 
+}

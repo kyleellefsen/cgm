@@ -2,20 +2,21 @@
 <html>
 <head>
     <title>CGM Graph Visualization</title>
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/panel-styles.css">
-    <link rel="stylesheet" href="/static/css/graph-styles.css">
-    <link rel="stylesheet" href="/static/css/cpd-table-styles.css">
-    <link rel="stylesheet" href="/static/css/plot-styles.css">
-    <link rel="stylesheet" href="/static/css/sampling-controls.css">
+    <link rel="stylesheet" href="/static/css/base.css?nocache">
+    <link rel="stylesheet" href="/static/css/panel-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/graph-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/cpd-table-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/plot-styles.css?nocache">
+    <link rel="stylesheet" href="/static/css/sampling-controls.css?nocache">
     <script type="importmap">
     {
         "imports": {
             "d3": "https://cdn.jsdelivr.net/npm/d3@7/+esm",
-            "/components/plot-manager": "/static/js/dist/components/plot-manager.js",
-            "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js",
-            "/components/plot": "/static/js/dist/components/plot.js",
-            "/types": "/static/js/dist/types.js"
+            "/components/plot-manager": "/static/js/dist/components/plot-manager.js?nocache",
+            "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
+            "/components/plot": "/static/js/dist/components/plot.js?nocache",
+            "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
+            "/types": "/static/js/dist/types.js?nocache"
         }
     }
     </script>
@@ -28,31 +29,31 @@
         <div class="vertical-resizer" id="vertical-resizer"></div>
         <div class="panels-container">
             <div class="upper-panel">
-                <div class="panel-placeholder">
-                    Click a node to view its CPD table
-                </div>
-            </div>
-            <div class="horizontal-resizer" id="upper-resizer"></div>
-            <div class="middle-panel">
-                <div class="distribution-plots-container">
                     <div class="panel-placeholder">
-                        Click a node to view its distribution plot
+                        Click a node to view its CPD table
                     </div>
                 </div>
-            </div>
+            <div class="horizontal-resizer" id="upper-resizer"></div>
+            <div class="middle-panel">
+                    <div class="distribution-plots-container">
+                        <div class="panel-placeholder">
+                            Click a node to view its distribution plot
+                        </div>
+                    </div>
+                </div>
             <div class="horizontal-resizer" id="plot-resizer"></div>
             <div class="lower-panel">
-                <!-- Sampling controls will be injected here -->
+                    <!-- Sampling controls will be injected here -->
             </div>
         </div>
     </div>
     <script type="module">
         import * as d3 from 'd3';
-        import { GraphVisualization } from '/static/js/dist/components/graph-visualization.js';
+        import { GraphVisualization } from '/components/graph-visualization';
         
         // Initialize visualization after both DOM and resources are loaded
         let initialized = false;
-        
+
         async function initializeViz() {
             if (!initialized) {
                 try {
