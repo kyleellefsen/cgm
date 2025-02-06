@@ -9,23 +9,21 @@ export class PanelManager {
 
     constructor(onGraphResized: (newWidth: number) => void) {
         this.onGraphResized = onGraphResized;
-        console.log("Settings up resizers");
         this.setupResizers();
     }
 
     setupResizers(): void {
         this.setupVerticalResizer();
-        this.setupHorizontalResizer('upper-resizer');
-        this.setupHorizontalResizer('plot-resizer');
+        const horizontalResizers = document.getElementsByClassName('horizontal-resizer');
+        for (const resizer of horizontalResizers) {
+            this.setupHorizontalResizer(resizer as HTMLElement);
+        }
     }
 
     private setupVerticalResizer() {
-        console.log("Setting up vertical resizer");
         const resizer = document.getElementsByClassName('vertical-resizer')[0];
         const prevSibling = resizer.previousElementSibling as HTMLElementWithStyle;
         const nextSibling = resizer.nextElementSibling as HTMLElementWithStyle;
-        console.log("Previous sibling:", prevSibling);
-        console.log("Next sibling:", nextSibling);
         
         let isResizing = false;
         let startX: number;
@@ -77,7 +75,7 @@ export class PanelManager {
         resizer?.addEventListener('mousedown', (e: Event) => startResize(e as MouseEvent));
         document.addEventListener('mousemove', (e: Event) => resize(e as MouseEvent));
         document.addEventListener('mouseup', (e: Event) => stopResize(e as MouseEvent));
-
+        
         // Add window resize handler
         window.addEventListener('resize', () => {
             if (prevSibling && nextSibling) {
@@ -93,13 +91,11 @@ export class PanelManager {
         });
     }
 
-    private setupHorizontalResizer(resizerId: string): void {
-        const resizer = document.getElementById(resizerId);
-        if (!resizer) return;
-        const prevPanel =  resizer.previousElementSibling as HTMLElementWithStyle;
+    private setupHorizontalResizer(resizer: HTMLElement): void {
+        const prevPanel = resizer.previousElementSibling as HTMLElementWithStyle;
         const nextPanel = resizer.nextElementSibling as HTMLElementWithStyle;
         
-        if (!resizer || !prevPanel || !nextPanel) return;
+        if (!prevPanel || !nextPanel) return;
 
         let isResizing = false;
         let startY: number;
