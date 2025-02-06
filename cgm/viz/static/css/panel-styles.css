@@ -1,8 +1,25 @@
 /* Panels Container */
 .panels-container {
     display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.panels-container > .flex-row {
+    display: flex;
+    flex-direction: row;
+    flex: 0 0 auto;
+    min-width: 200px;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.panels-container > .flex-column {
+    display: flex;
     flex-direction: column;
-    flex: 1 1 30%;
+    flex: 1 1 auto;
     min-width: 200px;
     height: 100vh;
     overflow: hidden;
@@ -16,7 +33,6 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    flex: 1 1 auto;
     min-height: 100px;
 }
 

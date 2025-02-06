@@ -14,6 +14,14 @@ import {
 } from '../types';
 import { PlotManager } from '/components/plot-manager';
 import { SamplingControls } from '/components/sampling-controls';
+import { PanelManager } from '/components/panel-manager';
+import {
+    calculateNodeWidth,
+    calculateLinkEndpoints,
+    calculateNodeClasses,
+    calculateTableHighlightSelectors,
+    calculateInitialNodePosition
+} from '../utils/graph-utils';
 
 interface HTMLElementWithStyle extends HTMLElement {
     style: CSSStyleDeclaration;
@@ -37,151 +45,9 @@ export class GraphVisualization {
     private plotManager?: PlotManager;
     private currentGraphState!: GraphState;
     private samplingControls!: SamplingControls | null;
+    private panelManager!: PanelManager;
 
-    setupResizers(): void {
-        this.setupVerticalResizer();
-        this.setupHorizontalResizer('upper-resizer', '.cpd-table-panel', '.distribution-plot-panel');
-        this.setupHorizontalResizer('plot-resizer', '.distribution-plot-panel', '.sampling-controls-panel');
-    }
-
-    setupVerticalResizer() {
-        const resizer = document.getElementById('vertical-resizer');
-        const graphContainer = document.querySelector('.graph-container') as HTMLElementWithStyle;
-        const panelsContainer = document.querySelector('.panels-container') as HTMLElementWithStyle;
-        
-        let isResizing = false;
-        let startX: number;
-        let startGraphWidth: number;
-        let startPanelsWidth: number;
-        
-        const startResize = (e: MouseEvent) => {
-            isResizing = true;
-            resizer?.classList.add('resizing');
-            startX = e.pageX;
-            startGraphWidth = graphContainer?.offsetWidth || 0;
-            startPanelsWidth = panelsContainer?.offsetWidth || 0;
-            document.documentElement.style.cursor = 'col-resize';
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        const resize = (e: MouseEvent) => {
-            if (!isResizing || !graphContainer || !panelsContainer) return;
-            
-            const dx = e.pageX - startX;
-            
-            // Calculate new widths
-            const newGraphWidth = startGraphWidth + dx;
-            const newPanelsWidth = startPanelsWidth - dx;
-            
-            // Apply minimum widths
-            if (newGraphWidth >= 200 && newPanelsWidth >= 200) {
-                graphContainer.style.flex = 'none';
-                panelsContainer.style.flex = 'none';
-                graphContainer.style.width = `${newGraphWidth}px`;
-                panelsContainer.style.width = `${newPanelsWidth}px`;
-                
-                // Update visualization width
-                this.width = this.calculateWidth();
-                this.svg.attr("width", this.width);
-                
-                // Update force simulation center
-                this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
-                this.simulation.alpha(0.3).restart();
-            }
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        const stopResize = (e: MouseEvent) => {
-            if (!isResizing) return;
-            isResizing = false;
-            resizer?.classList.remove('resizing');
-            document.documentElement.style.cursor = '';
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        resizer?.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-
-        // Add window resize handler
-        window.addEventListener('resize', () => {
-            const graphContainer = document.querySelector('.graph-container') as HTMLElementWithStyle;
-            const panelsContainer = document.querySelector('.panels-container') as HTMLElementWithStyle;
-            if (graphContainer && panelsContainer) {
-                // Reset flex layout
-                graphContainer.style.flex = '1 1 70%';
-                panelsContainer.style.flex = '1 1 30%';
-                graphContainer.style.width = '';
-                panelsContainer.style.width = '';
-            }
-            
-            // Update visualization dimensions
-            this.width = this.calculateWidth();
-            this.height = window.innerHeight;
-            this.svg.attr("width", this.width)
-                .attr("height", this.height);
-            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.03))
-                .force("y", d3.forceY(this.height / 2).strength(0.03));
-            this.simulation.alpha(0.3).restart();
-        });
-    }
-
-    private setupHorizontalResizer(resizerId: string, upperSelector: string, lowerSelector: string): void {
-        const resizer = document.getElementById(resizerId);
-        const upperPanel = document.querySelector(upperSelector) as HTMLElementWithStyle;
-        const lowerPanel = document.querySelector(lowerSelector) as HTMLElementWithStyle;
-        
-        if (!resizer || !upperPanel || !lowerPanel) return;
-
-        let isResizing = false;
-        let startY: number;
-        let startUpperHeight: number;
-        let startLowerHeight: number;
-
-        const startResize = (e: MouseEvent) => {
-            isResizing = true;
-            resizer.classList.add('resizing');
-            startY = e.pageY;
-            startUpperHeight = upperPanel.offsetHeight;
-            startLowerHeight = lowerPanel.offsetHeight;
-            document.documentElement.style.cursor = 'row-resize';
-            e.preventDefault();
-            e.stopPropagation();
-        };
-
-        const resize = (e: MouseEvent) => {
-            if (!isResizing) return;
-
-            const dy = e.pageY - startY;
-            const newUpperHeight = startUpperHeight + dy;
-            const newLowerHeight = startLowerHeight - dy;
-
-            if (newUpperHeight >= 100 && newLowerHeight >= 100) {
-                upperPanel.style.flex = 'none';
-                lowerPanel.style.flex = 'none';
-                upperPanel.style.height = `${newUpperHeight}px`;
-                lowerPanel.style.height = `${newLowerHeight}px`;
-            }
-
-            e.preventDefault();
-            e.stopPropagation();
-        };
-
-        const stopResize = () => {
-            isResizing = false;
-            resizer.classList.remove('resizing');
-            document.documentElement.style.cursor = '';
-        };
-
-        resizer.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-    }
-
-    calculateWidth(): number {
+    private calculateWidth(): number {
         const container = document.querySelector('.graph-container') as HTMLElementWithStyle;
         return container?.offsetWidth || 0;
     }
@@ -198,17 +64,6 @@ export class GraphVisualization {
         this.simulationLinks = new Map(); // Store simulation links by ID
         this.selectedNode = null;
         this.samplingControls = null;
-        
-        // Add window resize handler
-        window.addEventListener('resize', () => {
-            this.width = this.calculateWidth();
-            this.height = window.innerHeight;
-            this.svg.attr("width", this.width)
-                .attr("height", this.height);
-            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.03))
-                .force("y", d3.forceY(this.height / 2).strength(0.03));
-            this.simulation.alpha(0.3).restart();
-        });
         
         // Set up SVG - clear existing content first
         d3.select(".graph-container").selectAll("svg").remove();
@@ -230,7 +85,7 @@ export class GraphVisualization {
             .attr("fill", "#64748b");
 
         // Initialize simulation with gentler forces
-        this.simulation = d3.forceSimulation<SimulationNode>()
+        this.simulation = d3.forceSimulation<SimulationNode, SimulationLink>()
             .force("link", d3.forceLink<SimulationNode, SimulationLink>()
                 .id(d => d.id)
                 .distance(150)
@@ -248,8 +103,13 @@ export class GraphVisualization {
         this.nodesGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
         this.labelsGroup = this.svg.append<SVGGElement>("g") as unknown as D3SVGGSelection;
         
-        // Set up resizers
-        this.setupResizers();
+        // Set up panel manager
+        this.panelManager = new PanelManager((newWidth: number) => {
+            this.width = newWidth;
+            this.svg.attr("width", this.width);
+            this.simulation.force("x", d3.forceX(this.width / 2).strength(0.05));
+            this.simulation.alpha(0.3).restart();
+        });
         
         // Start update loop
         this.startUpdateLoop();
@@ -310,7 +170,7 @@ export class GraphVisualization {
                 if (existingNode.isDragging) {
                     // Preserve all motion state during drag
                     Object.assign(existingNode, {
-                        ...node,  // This includes conditioned_state from server
+                        ...node,
                         width: nodeWidth,
                         height: this.nodeHeight,
                         x: existingNode.x,
@@ -323,7 +183,7 @@ export class GraphVisualization {
                 } else {
                     // For non-dragged nodes, preserve position but update state
                     const newNodeState = {
-                        ...node,  // This includes conditioned_state from server
+                        ...node,
                         width: nodeWidth,
                         height: this.nodeHeight
                     };
@@ -343,10 +203,10 @@ export class GraphVisualization {
                 }
             } else {
                 // Add new node with initial position
+                const position = calculateInitialNodePosition(this.width, this.height);
                 const newNode: SimulationNode = {
-                    ...node,  // This includes conditioned_state from server
-                    x: this.width/2 + (Math.random() - 0.5) * 100,
-                    y: this.height/2 + (Math.random() - 0.5) * 100,
+                    ...node,
+                    ...position,
                     fx: null,
                     fy: null,
                     vx: 0,
@@ -467,12 +327,7 @@ export class GraphVisualization {
         // Enter new nodes
         const nodeEnter = nodes.enter()
             .append("g")
-            .attr("class", d => {
-                const classes = ['node'];
-                if (d.type) classes.push(d.type);
-                if (d.conditioned_state >= 0) classes.push('conditioned');
-                return classes.join(' ');
-            });
+            .attr("class", d => calculateNodeClasses(d).join(' '));
             
         // Add basic elements to new nodes
         nodeEnter
@@ -566,7 +421,7 @@ export class GraphVisualization {
         const bbox = (temp.node() as SVGTextElement).getBBox();
         const width = bbox.width;
         temp.remove();
-        return width + this.textPadding * 2; // Add padding on both sides
+        return calculateNodeWidth(width, this.textPadding);
     }
 
     dragstarted(event: d3.D3DragEvent<SVGGElement, SimulationNode, unknown>, d: SimulationNode) {
@@ -836,22 +691,11 @@ export class GraphVisualization {
         // Clear any existing highlighting
         table.selectAll<HTMLTableCellElement, unknown>("td, th").classed("state-active", false);
 
-        const currentState = parseInt(node.conditioned_state.toString());
-        if (currentState === -1) return;  // No highlighting needed
-
         const hasParents = !table.classed("no-parents");
+        const selectors = calculateTableHighlightSelectors(node, hasParents);
         
-        if (hasParents) {
-            // For nodes with parents, highlight cells and header showing the current state
-            table.selectAll<HTMLTableCellElement, unknown>(`td[data-variable="${node.id}"][data-value="${currentState}"], 
-                           th[data-variable="${node.id}"][data-value="${currentState}"]`)
-                .classed("state-active", true);
-        } else {
-            // For nodes without parents, highlight the column corresponding to the state
-            // Add 1 to account for the label column
-            const stateColumn = currentState + 1;
-            table.selectAll<HTMLTableCellElement, unknown>(`td:nth-child(${stateColumn}), 
-                           th:nth-child(${stateColumn})`)
+        if (selectors) {
+            table.selectAll<HTMLTableCellElement, unknown>(selectors)
                 .classed("state-active", true);
         }
     }
@@ -865,31 +709,37 @@ export class GraphVisualization {
             .attr("marker-end", "url(#arrowhead)")
             .style("stroke", "#64748b")
             .style("stroke-width", "1.5px")
-            .attr("x1", d => {
-                const dx = (d.target.x || 0) - (d.source.x || 0);
-                const dy = (d.target.y || 0) - (d.source.y || 0);
-                const angle = Math.atan2(dy, dx);
-                return (d.source.x || 0) + Math.cos(angle) * ((d.source.width || 0) / 2);
-            })
-            .attr("y1", d => {
-                const dx = (d.target.x || 0) - (d.source.x || 0);
-                const dy = (d.target.y || 0) - (d.source.y || 0);
-                const angle = Math.atan2(dy, dx);
-                return (d.source.y || 0) + Math.sin(angle) * ((d.source.height || 0) / 2);
-            })
-            .attr("x2", d => {
-                const dx = (d.target.x || 0) - (d.source.x || 0);
-                const dy = (d.target.y || 0) - (d.source.y || 0);
-                const angle = Math.atan2(dy, dx);
-                const targetRadius = ((d.target.width || 0) / 2);
-                return (d.target.x || 0) - Math.cos(angle) * targetRadius;  // Remove the offset
-            })
-            .attr("y2", d => {
-                const dx = (d.target.x || 0) - (d.source.x || 0);
-                const dy = (d.target.y || 0) - (d.source.y || 0);
-                const angle = Math.atan2(dy, dx);
-                const targetRadius = ((d.target.height || 0) / 2);
-                return (d.target.y || 0) - Math.sin(angle) * targetRadius;  // Remove the offset
+            .each(function(d) {
+                const source = d.source as SimulationNode;
+                const target = d.target as SimulationNode;
+                
+                // Ensure we have valid coordinates before calculating endpoints
+                if (typeof source.x === 'number' && typeof source.y === 'number' &&
+                    typeof target.x === 'number' && typeof target.y === 'number' &&
+                    typeof source.width === 'number' && typeof source.height === 'number' &&
+                    typeof target.width === 'number' && typeof target.height === 'number') {
+                    
+                    const endpoints = calculateLinkEndpoints(
+                        {
+                            x: source.x,
+                            y: source.y,
+                            width: source.width,
+                            height: source.height
+                        },
+                        {
+                            x: target.x,
+                            y: target.y,
+                            width: target.width,
+                            height: target.height
+                        }
+                    );
+                    
+                    d3.select(this)
+                        .attr("x1", endpoints.x1)
+                        .attr("y1", endpoints.y1)
+                        .attr("x2", endpoints.x2)
+                        .attr("y2", endpoints.y2);
+                }
             });
 
         // Update node groups

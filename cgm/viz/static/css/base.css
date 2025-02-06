@@ -14,6 +14,10 @@ body {
     overflow: hidden; /* Prevent scrolling on body */
 }
 
+.flex {
+    display: flex;
+}
+
 .container {
     display: flex;
     width: 100vw;

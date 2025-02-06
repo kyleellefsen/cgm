@@ -23,15 +23,19 @@
     </script>
 </head>
 <body>
-    <div class="container">
-        <div class="graph-container panel">
-            <div class="panel-header">Graph Visualization</div>
-            <div class="panel-content">
-                <svg id="graph"></svg>
+    <!-- `panels-container` is organized as a tree of `flex-row` and 
+         `flex-column`, with `panel` as the leaves. -->
+    <div class="panels-container">
+        <div class="flex flex-row">
+            <div class="panel graph-container">
+                <div class="panel-header">Graph Visualization</div>
+                <div class="panel-content">
+                    <svg id="graph"></svg>
+                </div>
             </div>
         </div>
         <div class="vertical-resizer" id="vertical-resizer"></div>
-        <div class="panels-container">
+        <div class="flex flex-column">
             <div class="panel cpd-table-panel">
                 <div class="panel-header">CPD Table</div>
                 <div class="panel-content">
