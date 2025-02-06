@@ -23,13 +23,6 @@ export class PanelManager {
         const panel = document.querySelector(`[data-panel-id="${config.id}"]`) as HTMLElement;
         if (!panel) return;
 
-        // Set minimum dimensions as CSS variables
-        if (config.minWidth) {
-            panel.style.setProperty('--min-width', `${config.minWidth}px`);
-        }
-        if (config.minHeight) {
-            panel.style.setProperty('--min-height', `${config.minHeight}px`);
-        }
 
         // Setup collapsible behavior
         if (config.collapsible) {

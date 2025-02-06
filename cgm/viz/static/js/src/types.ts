@@ -122,3 +122,18 @@ export interface NodeDistributionResponse {
     error?: NodeDistributionError;
     result?: NodeDistributionSuccess;
 }
+
+// Panel Management Types
+export interface PanelConfig {
+    id: string;                    // Unique identifier for the panel
+    title: string;               // Panel header title
+    collapsible: boolean;       // Whether panel can be collapsed
+    onResize: (width: number, height: number) => void;
+    onCollapse: (collapsed: boolean) => void;
+    initialContent: HTMLElement;
+}
+
+export interface PanelDimensions {
+    width: number;
+    height: number;
+}
