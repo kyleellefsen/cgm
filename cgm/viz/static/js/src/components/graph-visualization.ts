@@ -300,8 +300,6 @@ export class GraphVisualization {
     }
 
     updateData(newData: { nodes: SimulationNode[]; links: SimulationLink[] }) {
-        console.log('Received new data:', newData);
-        
         // Update existing nodes and add new ones
         newData.nodes.forEach(node => {
             const existingNode = this.simulationNodes.get(node.id);

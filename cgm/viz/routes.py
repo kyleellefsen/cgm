@@ -22,9 +22,9 @@ def setup_routes(app: fastapi.FastAPI, static_dir: pathlib.Path) -> None:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     
     @app.get("/", response_class=HTMLResponse)
-    async def home() -> FileResponse:
+    async def index() -> FileResponse:
         """Serve the visualization page."""
-        return FileResponse(static_dir / "viz-layout.html")
+        return FileResponse(static_dir / "index.html")
 
     @app.get("/state")
     async def get_state(viz_state: VizState = Depends(get_viz_state)) -> Dict:

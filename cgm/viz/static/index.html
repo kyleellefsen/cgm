@@ -16,7 +16,8 @@
             "/components/sampling-controls": "/static/js/dist/components/sampling-controls.js?nocache",
             "/components/plot": "/static/js/dist/components/plot.js?nocache",
             "/components/graph-visualization": "/static/js/dist/components/graph-visualization.js?nocache",
-            "/types": "/static/js/dist/types.js?nocache"
+            "/types": "/static/js/dist/types.js?nocache",
+            "/main": "/static/js/dist/main.js?nocache"
         }
     }
     </script>
@@ -48,28 +49,7 @@
         </div>
     </div>
     <script type="module">
-        import * as d3 from 'd3';
-        import { GraphVisualization } from '/components/graph-visualization';
-        
-        // Initialize visualization after both DOM and resources are loaded
-        let initialized = false;
-
-        async function initializeViz() {
-            if (!initialized) {
-                try {
-                    window.graphViz = new GraphVisualization();
-                    initialized = true;
-                } catch (error) {
-                    console.error('Failed to initialize visualization:', error);
-                }
-            }
-        }
-
-        // Initialize immediately since we're using modules
-        initializeViz();
-
-        // Global error handler
-        window.addEventListener('error', event => console.error('Script Error:', event.error));
+        import '/main';
     </script>
 </body>
 </html>
