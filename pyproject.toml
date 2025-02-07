@@ -42,6 +42,7 @@ viz = [
        "uvicorn",
        "pydantic",
        "fastapi",
+       "httpx",
 ]
 
 [project.urls]
