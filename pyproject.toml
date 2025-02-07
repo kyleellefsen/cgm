@@ -41,6 +41,7 @@ viz = [
        "fastapi",
        "uvicorn",
        "pydantic",
+       "fastapi",
 ]
 
 [project.urls]
@@ -59,6 +60,7 @@ viz = [ "static/js/dist/**/*.js", "static/css/**/*.css", "static/index.html"]
 addopts = [ "--import-mode=importlib",]
 testpaths = ["tests"]
 pythonpath = ["."]
+norecursedirs = ["tests/viz"]  # This prevents pytest from looking in tests/viz by default
 
 [tool.mypy]
 exclude = '''(?x)(
