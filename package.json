@@ -1,0 +1,27 @@
+{
+  "name": "cgm-visualization",
+  "version": "1.0.0",
+  "description": "Visualization library for CGM",
+  "main": "cgm/viz/static/js/dist/main.js",
+  "types": "cgm/viz/static/js/dist/main.d.ts",
+  "scripts": {
+    "clean": "rm -rf cgm/viz/static/js/dist",
+    "build": "npm run clean && tsc",
+    "watch": "npm run clean && tsc -w",
+    "test": "jest",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "d3": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/jest": "^29.5.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.0",
+    "@typescript-eslint/parser": "^5.59.0",
+    "eslint": "^8.38.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.4"
+  }
+}

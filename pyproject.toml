@@ -53,6 +53,7 @@ where = ["."]
 
 [tool.setuptools.package-data]
 cgm = ["py.typed"]
+viz = [ "static/js/dist/**/*.js", "static/css/**/*.css", "static/index.html"]
 
 [tool.pytest.ini_options]
 addopts = [ "--import-mode=importlib",]

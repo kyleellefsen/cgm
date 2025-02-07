@@ -10,10 +10,10 @@ prioritizing quick feedback loops over feature completeness.
 The visualization system follows these core principles:
 
 1. **Minimal Setup** - Developers should be able to visualize graphs with minimal 
-   ceremony or configuration. The system uses a simple Flask server and D3.js for
+   ceremony or configuration. The system uses a simple FastAPI server and D3.js for
    visualization.
 
-2. **State Management** - The Flask server acts as the single source of truth for
+2. **State Management** - The FastAPI server acts as the single source of truth for
    the current graph state. This allows developers to:
    - Close and reopen browser windows without losing state
    - Get the latest visualization just by refreshing the browser
