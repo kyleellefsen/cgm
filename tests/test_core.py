@@ -701,7 +701,7 @@ def test_cpd_probability_notation():
     assert phi1.child == A
     assert phi1.parents == frozenset()
     assert phi1.scope == (A,)
-    assert np.sum(phi1.values) == 1.0  # Should be normalized
+    npt.assert_almost_equal(np.sum(phi1.values), 1.0)  # Should be normalized
     
     # Test single parent case
     phi2 = g.P(B | A)
