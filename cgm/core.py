@@ -1026,7 +1026,7 @@ class GraphState:
         return cls(
             network=network,
             schema=schema,
-            _values=np.full(schema.num_vars, -1, dtype=np.float_),
+            _values=np.full(schema.num_vars, -1, dtype=np.float64),
             _mask=np.zeros(schema.num_vars, dtype=np.bool_)
         )
 
